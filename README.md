@@ -19,9 +19,10 @@ El entorno de desarrollo requiere Windows, Android Studio con SDK 37, JDK 25, Po
 
 1. La carpeta raíz, que contiene `settings.gradle.kts`, se abre en Android Studio.
 2. La sincronización configura el módulo `app` y la ubicación local del SDK.
-3. Se seleccionan la configuración **app** y el dispositivo de destino.
-4. **Run** ejecuta el arranque de PostgreSQL y de la API antes de compilar e instalar Android.
-5. En Android 17, la aplicación solicita permiso de acceso a la red local para comunicarse con la API.
+3. `backend/.env` contiene la conexión al PostgreSQL instalado. `.env.example` proporciona el formato; la contraseña corresponde al usuario de la instalación local.
+4. Se seleccionan la configuración **app** y el dispositivo de destino.
+5. **Run** ejecuta el arranque de PostgreSQL y de la API antes de compilar e instalar Android.
+6. En Android 17, la aplicación solicita permiso de acceso a la red local para comunicarse con la API.
 
 El arranque está integrado mediante `.run/app.run.xml` y la dependencia de `preDebugBuild` respecto a `:app:startLocalServices`. El uso habitual no requiere ejecutar comandos adicionales.
 
@@ -29,7 +30,7 @@ El arranque está integrado mediante `.run/app.run.xml` y la dependencia de `pre
 
 | Herramienta | Ruta predeterminada | Variable alternativa |
 | --- | --- | --- |
-| PostgreSQL 18 | `C:\Program Files\PostgreSQL\18\bin` | `PERSONAS_PG_BIN`: carpeta que contiene `pg_ctl.exe`, `initdb.exe` y `psql.exe` |
+| PostgreSQL 18 | `C:\Program Files\PostgreSQL\18\bin` | `PERSONAS_PG_BIN`: carpeta que contiene `psql.exe` y `pg_isready.exe` |
 | JDK 25 para la API | `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot` | `PERSONAS_JAVA_HOME`: raíz del JDK |
 | Maven 3.9.16 | `%USERPROFILE%\.maven\maven-3.9.16` | `PERSONAS_MAVEN_HOME`: raíz de Maven |
 | Android SDK | Ubicación de Android Studio en `local.properties` | `ANDROID_HOME` o `ANDROID_SDK_ROOT` |
@@ -38,13 +39,15 @@ Las variables alternativas permiten utilizar otras ubicaciones de instalación. 
 
 ### Servicios y datos locales
 
-El primer arranque crea un cluster PostgreSQL privado en `.local/postgres`, con puerto **55440**, usuario **personas** y base **personas_app**. La contraseña se genera aleatoriamente y se guarda en `backend/.env`. El esquema, las tablas y el catálogo inicial se crean automáticamente.
+La conexión local utiliza el PostgreSQL instalado en **localhost:5432**, con usuario **postgres** y base **personas_app**. `localhost` identifica al equipo que ejecuta el servidor; `postgres` es el usuario de la base de datos. La contraseña se configura únicamente en `backend/.env`. El arranque crea la base si todavía no existe; la API inicializa el esquema, las tablas y el catálogo. El usuario configurado requiere permiso para crear la base durante ese primer arranque.
 
-La API escucha en el puerto **8081**. El arranque comprueba `/api/health`, que realiza una consulta a PostgreSQL. Los cambios de fuentes de la API provocan su compilación y reinicio; una instancia propia actualizada se reutiliza. La sustitución de un proceso requiere verificar su instancia, PID, fecha de inicio y ejecutable.
+PostgreSQL funciona como servicio de Windows con inicio automático. Si el servidor no responde, Run solicita el inicio del servicio indicado en `POSTGRES_SERVICE`, cuyo valor predeterminado es `postgresql-x64-18`. La cuenta de Windows necesita permiso para iniciar ese servicio. El proyecto utiliza esa instalación y conserva sus demás bases de datos.
+
+La API escucha en el puerto **8081**. El arranque comprueba `/api/health`, que realiza una consulta a PostgreSQL. Los cambios de fuentes de la API provocan su compilación y reinicio. Los cambios de `.env` reinician la API con la nueva conexión; una instancia propia actualizada se reutiliza. La sustitución de un proceso requiere verificar su instancia, PID, fecha de inicio y ejecutable.
 
 La conexión Android se resuelve automáticamente: el emulador utiliza `10.0.2.2:8081` y el teléfono USB utiliza `127.0.0.1:8081` mediante `adb reverse`. El emulador accede directamente al host. La interfaz no contiene una configuración de IP.
 
-PostgreSQL y la API permanecen activos después de cerrar Android. Sus logs se encuentran en `.local/postgres.log` y `.local/api.log`. La conservación de `.local` y `backend/.env` mantiene los datos y sus credenciales. El wrapper de Windows utiliza `.gradle/tmp` como directorio temporal de su ejecución y configura los sockets locales mediante `jdk.net.unixdomain.tmpdir`.
+PostgreSQL y la API permanecen activos después de cerrar Android. El log de la API se encuentra en `.local/api.log`; PostgreSQL utiliza los logs y el directorio de datos de su instalación de Windows. `backend/.env` contiene la configuración local y `.local` conserva el estado de arranque de la API. El wrapper de Windows utiliza `.gradle/tmp` como directorio temporal de su ejecución y configura los sockets locales mediante `jdk.net.unixdomain.tmpdir`.
 
 ## Consulta de PostgreSQL con pgAdmin
 
@@ -52,13 +55,13 @@ La conexión se registra en **Servers → Register → Server**. La pestaña **G
 
 | Campo | Valor |
 | --- | --- |
-| Host name/address | `127.0.0.1` |
-| Port | `55440` |
+| Host name/address | `localhost` |
+| Port | `5432` |
 | Maintenance database | `personas_app` |
-| Username | `personas` |
+| Username | `postgres` |
 | Password | Valor de `DB_PASSWORD` del archivo local `backend/.env` |
 
-La conexión requiere que los servicios del proyecto estén activos. El archivo `.env` contiene una contraseña específica de cada instalación y queda excluido del repositorio.
+La conexión requiere que los servicios del proyecto estén activos. El archivo `.env` contiene las credenciales del PostgreSQL local y queda excluido del repositorio.
 
 La tabla se encuentra en **Personas local → Databases → personas_app → Schemas → personas → Tables → persona**. La opción **View/Edit Data → All Rows** muestra las filas activas e inactivas. La tabla `profesion` contiene el catálogo relacionado.
 
@@ -123,6 +126,7 @@ Personas/
 ├── backend/
 │   ├── pom.xml
 │   ├── .env.example
+│   ├── storage/fotos/              (directorio generado)
 │   └── src/
 │       ├── main/java/com/example/personas/
 │       │   ├── App.java
@@ -136,13 +140,14 @@ Personas/
 ├── scripts/
 ├── gradle/
 ├── .run/app.run.xml
-├── docs/
 ├── build.gradle.kts
 ├── settings.gradle.kts
 ├── gradle.properties
 ├── gradlew / gradlew.bat
 └── README.md
 ```
+
+La vista **Project** del panel izquierdo de Android Studio muestra la carpeta raíz completa: `app`, `backend`, `scripts` y los archivos de configuración. La vista **Android** agrupa únicamente el módulo Android y oculta carpetas externas a ese módulo. El código del servidor está en `backend/src/main/java/com/example/personas/`.
 
 ### Android
 
@@ -212,7 +217,7 @@ En `backend/src/main/resources`, `application.properties` define conexión, puer
 | `migrate-estado.sql` | Conversión del indicador antiguo al campo `estado`, conservando activos e inactivos. |
 | `migrate-foto-ruta.sql` | Restricción de rutas de fotografía y correspondencia entre carpeta y DNI. |
 
-`backend/src/test` contiene validaciones y comprobaciones de almacenamiento transaccional. `pom.xml` define Java, Spring Boot, JPA, validación, PostgreSQL, dotenv y empaquetado. `.env.example` describe el formato de configuración; Run genera el `.env` local.
+`backend/src/test` contiene validaciones y comprobaciones de almacenamiento transaccional. `pom.xml` define Java, Spring Boot, JPA, validación, PostgreSQL, dotenv y empaquetado. `.env.example` describe el formato de configuración. Si falta `.env`, Run copia la plantilla y señala los valores pendientes de configurar antes de conectar.
 
 ### Configuración y herramientas
 
@@ -223,15 +228,15 @@ En `backend/src/main/resources`, `application.properties` define conexión, puer
 | `gradle/wrapper`, `gradlew`, `gradlew.bat` | Distribución de Gradle del proyecto. |
 | `gradle/gradle-daemon-jvm.properties`, `gradle.properties` | JVM del daemon, memoria, codificación y caché. |
 | `.run/app.run.xml` | Configuración Run con preparación previa de servicios. |
-| `scripts/start-local-services.ps1` | Gestión del cluster privado, credenciales, compilación de API, comprobación de disponibilidad y túnel USB. |
+| `scripts/start-local-services.ps1` | Lectura de `.env`, inicio del servicio PostgreSQL cuando se requiere, creación de la base, compilación y reinicio de API, comprobación de disponibilidad y túnel USB. |
 | `scripts/maven.ps1` | Ejecución de Maven con el JDK configurado. |
+| `scripts/postgres_config.py` | Lectura compartida de la conexión PostgreSQL para las herramientas de integración. |
 | `scripts/test-api.py` | Comprobaciones HTTP/SQL sobre una base desechable. |
 | `scripts/emulator-services.py` | API y base temporales para interacción desde el emulador. |
 | `scripts/emulator-ui.py` | Accesibilidad, escritura y capturas mediante ADB; utiliza por defecto `C:\Android\Sdk` y `emulator-5556`. |
-| `docs/`, `QA_EMULADOR.md` | Documentación de verificación y capturas con datos sintéticos. |
 | `.gitignore`, `.gitattributes` | Exclusiones de archivos locales y normalización de formatos. |
 
-`.local`, `.gradle`, `.kotlin`, `build`, `app/build`, `backend/target` y `backend/storage` son directorios generados. Las credenciales, bases locales, fotos de usuarios y configuración del IDE permanecen fuera del repositorio.
+`.local`, `.gradle`, `.kotlin`, `build`, `app/build`, `backend/target` y `backend/storage` son directorios generados. Las credenciales, fotos de usuarios, informes locales y configuración del IDE permanecen fuera del repositorio. `.env` almacena valores de configuración; `.gitignore` define qué rutas quedan excluidas de Git. La plantilla `.env.example` se publica sin contraseñas reales.
 
 ## Comunicación entre componentes
 
@@ -279,6 +284,20 @@ La eliminación cambia el estado a `INACTIVO` y conserva la fila y su fotografí
 Las validaciones de Android proporcionan avisos inmediatos. La API valida cualquier solicitud y PostgreSQL aplica restricciones de integridad. Hibernate utiliza `ddl-auto=validate`; los archivos SQL controlan el esquema.
 
 ## Almacenamiento de fotografías
+
+Las imágenes se organizan según su función:
+
+| Ubicación | Contenido |
+| --- | --- |
+| `app/src/main/res/drawable/` | Imágenes, formas e iconos incluidos al compilar el APK. |
+| `app/src/main/res/mipmap-*/` | Iconos de lanzamiento con distintas densidades. |
+| Almacenamiento privado de Android, `filesDir/drafts/` | Archivos de captura e importación mientras se prepara el formulario. |
+| Selector de fotos de Android | Acceso a las imágenes seleccionadas de la galería del dispositivo. |
+| `backend/storage/fotos/` | Fotografías persistentes de las personas registradas. |
+
+Los [recursos drawable](https://developer.android.com/guide/topics/resources/drawable-resource) forman parte de la aplicación compilada. Los archivos capturados durante el uso requieren [almacenamiento de ejecución](https://developer.android.com/training/data-storage/app-specific); en este proyecto, el servidor conserva la fotografía definitiva.
+
+En la instalación local, la ruta es `C:\Android\Personas\backend\storage\fotos`. El directorio raíz se crea al iniciar la API y cada subcarpeta por DNI aparece al guardar una persona con fotografía. La vista **Project** permite recorrer esa ubicación.
 
 Las fotografías se guardan por persona, dentro de una carpeta identificada por su DNI:
 

@@ -15,6 +15,9 @@
 local.properties
 /.local/
 /backend/.env
+.env
+.env.*
+!.env.example
 /backend/target/
 /backend/storage/
 /app/build/
@@ -26,5 +29,9 @@ local.properties
 *.py[cod]
 /Trabajo 3.docx
 /WhatsApp*.ogg
+/QA_EMULADOR.md
+/docs/capturas/
+/docs/pruebas-*.json
+/docs/instrumentacion.txt
 *.jks
 *.keystore

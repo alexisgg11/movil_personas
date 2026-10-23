@@ -1,7 +1,7 @@
 """Integration checks on a disposable database; never modifies application records."""
 import concurrent.futures
 import json
-import os
+from postgres_config import load_postgres
 from pathlib import Path
 import socket
 import shutil
@@ -21,18 +21,13 @@ WORK = LOCAL / ('verify-' + TOKEN)
 WORK.mkdir(parents=True)
 JAR = WORK / 'api-under-test.jar'
 shutil.copy2(ROOT / 'backend/target/personas-api-1.0.0.jar', JAR)
-env = os.environ.copy()
-for line in (ROOT / 'backend/.env').read_text(encoding='utf-8-sig').splitlines():
-    if '=' in line and not line.startswith('#'):
-        key, value = line.split('=', 1)
-        env[key] = value.strip().strip('"')
-env['PGPASSWORD'] = env['DB_PASSWORD']
+env, database_config = load_postgres(ROOT)
 env['TEMP'] = env['TMP'] = str(LOCAL / 'tmp')
 PG = Path(env.get('PERSONAS_PG_BIN', r'C:\Program Files\PostgreSQL\18\bin'))
 JAVA = Path(env.get('PERSONAS_JAVA_HOME', r'C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot')) / 'bin/java.exe'
 
 def sql(database, text):
-    result = subprocess.run([str(PG / 'psql.exe'), '-w', '-h', '127.0.0.1', '-p', '55440', '-U', 'personas', '-d', database, '-v', 'ON_ERROR_STOP=1', '-At', '-c', text], env=env, capture_output=True, text=True)
+    result = subprocess.run([str(PG / 'psql.exe'), *database_config.arguments(database), '-v', 'ON_ERROR_STOP=1', '-At', '-c', text], env=env, capture_output=True, text=True)
     if result.returncode:
         raise RuntimeError('PostgreSQL verification failed: ' + result.stderr.strip())
     return result.stdout.strip()
@@ -83,7 +78,7 @@ try:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     BASE = f'http://127.0.0.1:{port}'
-    env.update(DB_URL=f'jdbc:postgresql://127.0.0.1:55440/{DATABASE}', PORT=str(port), PHOTO_DIRECTORY=str(WORK / 'photos'), SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='4', SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE='1')
+    env.update(DB_URL=database_config.jdbc_url(DATABASE), PORT=str(port), PHOTO_DIRECTORY=str(WORK / 'photos'), SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='4', SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE='1')
     with (WORK / 'api.log').open('wb') as log:
         process = subprocess.Popen([str(JAVA), '-Dapp.instance=verify-' + TOKEN, '-jar', str(JAR)], cwd=ROOT / 'backend', env=env, stdout=log, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW)
     for attempt in range(90):

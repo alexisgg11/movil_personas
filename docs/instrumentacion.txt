@@ -1,9 +1,0 @@
-
-com.example.personas.ExampleInstrumentedTest:.
-com.example.personas.FichaDisenoTest:.
-com.example.personas.PersonasUiTest:...
-com.example.personas.TabLayoutTest:.
-
-Time: 16.101
-
-OK (6 tests)

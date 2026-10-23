@@ -1,6 +1,6 @@
 """Run an isolated real API/database while emulator UI tests are in progress."""
 import json
-import os
+from postgres_config import load_postgres
 from pathlib import Path
 import shutil
 import socket
@@ -16,17 +16,12 @@ token = uuid.uuid4().hex[:12]
 database = 'personas_emulator_' + token
 work = qa / token
 work.mkdir()
-env = os.environ.copy()
-for line in (root / 'backend/.env').read_text(encoding='utf-8-sig').splitlines():
-    if '=' in line and not line.startswith('#'):
-        key, value = line.split('=', 1)
-        env[key] = value.strip().strip('"')
-env['PGPASSWORD'] = env['DB_PASSWORD']
+env, database_config = load_postgres(root)
 env['TMP'] = env['TEMP'] = str(root / '.local/tmp')
 pg = Path(env.get('PERSONAS_PG_BIN', r'C:\Program Files\PostgreSQL\18\bin'))
 java = Path(env.get('PERSONAS_JAVA_HOME', r'C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot')) / 'bin/java.exe'
 def sql(db, statement):
-    p = subprocess.run([str(pg / 'psql.exe'), '-w', '-h', '127.0.0.1', '-p', '55440', '-U', 'personas', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-c', statement], env=env, text=True, capture_output=True)
+    p = subprocess.run([str(pg / 'psql.exe'), *database_config.arguments(db), '-v', 'ON_ERROR_STOP=1', '-At', '-c', statement], env=env, text=True, capture_output=True)
     if p.returncode: raise RuntimeError(p.stderr)
     return p.stdout.strip()
 process = None
@@ -41,7 +36,7 @@ try:
         port = sock.getsockname()[1]
     jar = work / 'api.jar'
     shutil.copy2(root / 'backend/target/personas-api-1.0.0.jar', jar)
-    env.update(DB_URL=f'jdbc:postgresql://127.0.0.1:55440/{database}', PORT=str(port), PHOTO_DIRECTORY=str(work / 'photos'))
+    env.update(DB_URL=database_config.jdbc_url(database), PORT=str(port), PHOTO_DIRECTORY=str(work / 'photos'))
     with (work / 'api.log').open('wb') as log:
         process = subprocess.Popen([str(java), '-Dapp.instance=emulator-' + token, '-jar', str(jar)], cwd=work, env=env, stdout=log, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW)
     for attempt in range(80):
