@@ -1,0 +1,27 @@
+{
+  "device": "Pixel 7 / Android 17",
+  "dniPrueba": "00601024",
+  "estadoAntes": "ACTIVO",
+  "estadoDespues": "INACTIVO",
+  "filaConservada": true,
+  "fotoSustituida": true,
+  "checks": [
+    "Campos obligatorios",
+    "Nuevo vacía el formulario",
+    "Profesión nueva",
+    "Celular que inicia con 8 rechazado",
+    "Foto obligatoria",
+    "Alta con cámara del sistema",
+    "Buscar por DNI",
+    "Consulta de ficha",
+    "DNI activo duplicado rechazado",
+    "Edición de nombre y celular",
+    "Reemplazo desde el selector de fotos",
+    "Archivo anterior retirado tras commit",
+    "Cancelar eliminación conserva ACTIVO",
+    "Eliminar conserva fila como INACTIVO",
+    "Persona y foto inactivas no disponibles",
+    "DNI inactivo permanece reservado y se rechaza nueva alta",
+    "Opción de IP retirada"
+  ]
+}
