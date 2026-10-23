@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 
-enum class Symbol { Search, Person, Eye, Edit, Delete, Phone, Mail, Location, Camera, Attach, Plus, Close, Check, ChevronRight, ChevronDown }
+enum class Symbol { Search, Person, Eye, Edit, Delete, Phone, Mail, Location, Camera, Attach, Plus, Close, Check, ChevronRight, ChevronDown, Briefcase, Home, IdCard }
 
 @Composable
 fun AppIcon(symbol: Symbol, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary, description: String? = null) {
@@ -45,6 +45,22 @@ fun AppIcon(symbol: Symbol, modifier: Modifier = Modifier, color: Color = Materi
                 Symbol.Delete -> { path(5f, 6f, 6f, 21f, 18f, 21f, 19f, 6f); line(3f, 6f, 21f, 6f); path(8f, 6f, 8f, 2f, 16f, 2f, 16f, 6f); line(10f, 10f, 10f, 17f); line(14f, 10f, 14f, 17f) }
                 Symbol.Mail -> { path(2f, 5f, 22f, 5f, 22f, 19f, 2f, 19f, 2f, 5f); path(2f, 6f, 12f, 13f, 22f, 6f) }
                 Symbol.Phone -> path(4f, 3f, 9f, 3f, 10f, 8f, 7f, 10f, 14f, 17f, 16f, 14f, 21f, 15f, 21f, 20f, 17f, 21f, 10f, 17f, 4f, 10f, 3f, 6f, 4f, 3f)
+                Symbol.Briefcase -> {
+                    path(3f, 7f, 21f, 7f, 21f, 21f, 3f, 21f, 3f, 7f)
+                    path(8f, 7f, 8f, 3f, 16f, 3f, 16f, 7f)
+                    line(3f, 12f, 21f, 12f); line(10f, 12f, 14f, 12f); line(12f, 11f, 12f, 15f)
+                }
+                Symbol.Home -> {
+                    path(2f, 11f, 12f, 3f, 22f, 11f)
+                    path(5f, 9f, 5f, 21f, 19f, 21f, 19f, 9f)
+                    path(9f, 21f, 9f, 14f, 15f, 14f, 15f, 21f)
+                }
+                Symbol.IdCard -> {
+                    path(2f, 5f, 22f, 5f, 22f, 20f, 2f, 20f, 2f, 5f)
+                    drawCircle(color, 2f, Offset(7f, 11f), style = stroke)
+                    path(4f, 17f, 4f, 15f, 10f, 15f, 10f, 17f)
+                    line(14f, 10f, 19f, 10f); line(14f, 15f, 19f, 15f)
+                }
                 Symbol.Location -> {
                     drawPath(Path().apply { moveTo(12f, 22f); cubicTo(-10f, 2f, 34f, 2f, 12f, 22f); close() }, color, style = stroke)
                     drawCircle(color, 2.5f, Offset(12f, 9f), style = stroke)

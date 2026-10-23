@@ -16,7 +16,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ApiError.class) ResponseEntity<ErrorResponse> api(ApiError e) { return respuesta(e.getStatus(), e.getMessage()); }
     @ExceptionHandler(MethodArgumentNotValidException.class) ResponseEntity<ErrorResponse> validacion(MethodArgumentNotValidException e) {
         Map<String, String> campos = new LinkedHashMap<>();
-        e.getBindingResult().getFieldErrors().forEach(error -> campos.putIfAbsent(error.getField(), error.getDefaultMessage()));
+        e.getBindingResult().getFieldErrors().forEach(error -> campos.putIfAbsent(error.getField().split("\\.", 2)[0], error.getDefaultMessage()));
         return ResponseEntity.badRequest().body(new ErrorResponse("Revisa los datos del formulario.", campos));
     }
     @ExceptionHandler({DataIntegrityViolationException.class, org.hibernate.exception.ConstraintViolationException.class})

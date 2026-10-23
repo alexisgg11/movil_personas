@@ -21,7 +21,7 @@ env['TMP'] = env['TEMP'] = str(root / '.local/tmp')
 pg = Path(env.get('PERSONAS_PG_BIN', r'C:\Program Files\PostgreSQL\18\bin'))
 java = Path(env.get('PERSONAS_JAVA_HOME', r'C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot')) / 'bin/java.exe'
 def sql(db, statement):
-    p = subprocess.run([str(pg / 'psql.exe'), *database_config.arguments(db), '-v', 'ON_ERROR_STOP=1', '-At', '-c', statement], env=env, text=True, capture_output=True)
+    p = subprocess.run([str(pg / 'psql.exe'), *database_config.arguments(db), '-v', 'ON_ERROR_STOP=1', '-At', '-f', '-'], env=env, input=statement, capture_output=True, encoding='utf-8', errors='replace')
     if p.returncode: raise RuntimeError(p.stderr)
     return p.stdout.strip()
 process = None

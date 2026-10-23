@@ -41,18 +41,54 @@ class PersonasUiTest {
         compose.onNodeWithTag("campo-Apellidos").performTextInput("Sandoval")
         compose.onNodeWithText("Alexis Sandoval").assertExists()
         compose.onNodeWithText("Contacto").performClick()
-        compose.onNodeWithTag("campo-Dirección").performTextInput("Av. Sanchez Cerro 27, Piura")
         compose.onNodeWithTag("campo-Celular").performTextInput("887654321")
         compose.onNodeWithTag("campo-Correo electrónico").performTextInput("alexis@correo.com")
-        compose.onNodeWithTag("resumen-contacto").assertTextContains("887654321 | alexis@correo.com | Av. Sanchez Cerro 27, Piura")
+        compose.onNodeWithTag("resumen-contacto").onChildren().filterToOne(hasText("887654321")).assertExists()
+        compose.onNodeWithTag("resumen-contacto").onChildren().filterToOne(hasText("alexis@correo.com")).assertExists()
         compose.onNodeWithText("Siguiente").performClick()
         compose.onNodeWithText("Revisa los datos").assertIsDisplayed()
-        compose.onNodeWithTag("mensaje-validacion").assertTextContains("Ingresa 9 dígitos; el primero debe ser 9.")
+        compose.onNodeWithTag("mensaje-validacion").assertTextContains("Ingresa 9 dígitos; el primero debe ser 9.", substring = true)
         compose.onNodeWithText("Entendido").performClick()
         compose.onNodeWithText("Contacto").assertIsSelected()
         compose.onNodeWithContentDescription("Cerrar ficha").performClick()
+        compose.waitUntil(5000) { compose.onAllNodesWithText("Descartar").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Descartar").performClick()
     }
+    @Test fun addressUsesCascadingSelectorsAndCancelPreservesTheAcceptedValue() {
+        fun esperar(etiqueta: String) {
+            compose.waitUntil(10000) { compose.onAllNodes(hasTestTag("campo-$etiqueta") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        }
+        fun seleccionar(etiqueta: String, nombre: String) {
+            esperar(etiqueta)
+            compose.onNodeWithTag("campo-$etiqueta").performScrollTo().performClick()
+            compose.onAllNodesWithText(nombre).onLast().performScrollTo().performClick()
+        }
+        compose.onNodeWithText("Nuevo").performClick()
+        compose.onNodeWithText("Contacto").performClick()
+        compose.onNodeWithTag("campo-Dirección").performClick()
+        esperar("Región")
+        compose.onNodeWithTag("campo-Provincia").assertIsNotEnabled()
+        compose.onNodeWithTag("campo-Distrito").assertIsNotEnabled()
+        compose.onNodeWithText("Aceptar").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Selecciona una región.").assertExists()
+        seleccionar("Región", "Piura")
+        seleccionar("Provincia", "Piura")
+        seleccionar("Distrito", "Piura")
+        compose.onNodeWithTag("campo-Vía y número").performScrollTo().performTextInput("Av. Sánchez Cerro 26")
+        compose.onNodeWithText("Aceptar").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("campo-Dirección").assertTextContains("Av. Sánchez Cerro 26, Piura")
+        compose.onNodeWithTag("campo-Dirección").performClick()
+        seleccionar("Región", "Lima")
+        esperar("Provincia")
+        compose.onNodeWithTag("campo-Distrito").assertIsNotEnabled()
+        compose.onNodeWithText("Selecciona una provincia").assertExists()
+        compose.onNodeWithText("Cancelar").performClick()
+        compose.onNodeWithTag("campo-Dirección").assertTextContains("Av. Sánchez Cerro 26, Piura")
+        compose.onNodeWithContentDescription("Cerrar ficha").performClick()
+        compose.waitUntil(5000) { compose.onAllNodesWithText("Descartar").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Descartar").performClick()
+    }
+
     @Test fun openingKeyboardKeepsFocusAndTheCompleteDraft() {
         compose.onNodeWithText("Nuevo").performClick()
         compose.onNodeWithTag("campo-DNI").performScrollTo().performClick().assertIsFocused().performTextInput("00601023")
@@ -65,6 +101,7 @@ class PersonasUiTest {
         compose.onNodeWithTag("campo-Apellidos").assertTextContains("Sandoval")
         compose.onNodeWithText("Alexis Sandoval").assertExists()
         compose.onNodeWithContentDescription("Cerrar ficha").performClick()
+        compose.waitUntil(5000) { compose.onAllNodesWithText("Descartar").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Descartar").performClick()
     }
 }

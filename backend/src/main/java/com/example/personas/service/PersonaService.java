@@ -17,8 +17,9 @@ public class PersonaService {
     private final ProfesionRepository profesiones;
     private final FotoStorage fotos;
     private final EntityManager em;
-    public PersonaService(PersonaRepository personas, ProfesionRepository profesiones, FotoStorage fotos, EntityManager em) {
-        this.personas = personas; this.profesiones = profesiones; this.fotos = fotos; this.em = em;
+    private final DireccionService direcciones;
+    public PersonaService(PersonaRepository personas, ProfesionRepository profesiones, FotoStorage fotos, EntityManager em, DireccionService direcciones) {
+        this.personas = personas; this.profesiones = profesiones; this.fotos = fotos; this.em = em; this.direcciones = direcciones;
     }
     @Transactional(readOnly = true) public PersonaResponse buscar(String dni) { return PersonaResponse.de(activa(dni)); }
     @Transactional(readOnly = true) public boolean existe(String dni) { validarDni(dni); return personas.existsById(dni); }
@@ -58,7 +59,7 @@ public class PersonaService {
         validarDni(dni); return personas.findByDniAndEstado(dni, EstadoPersona.ACTIVO).orElseThrow(() -> new ApiError(404, "No se encontró una persona con ese DNI."));
     }
     private void aplicarDatos(Persona persona, PersonaRequest d, Profesion profesion, String foto) {
-        persona.actualizar(d.nombres(), d.apellidos(), d.direccion(), profesion, d.celular(), d.correo(), foto);
+        persona.actualizar(d.nombres(), d.apellidos(), direcciones.guardar(d.direccion(), persona.getDireccion()), profesion, d.celular(), d.correo(), foto);
     }
     private Profesion profesion(Long id) { return profesiones.findById(id).orElseThrow(() -> new ApiError(400, "Selecciona una profesión existente.")); }
     private void validarDni(String dni) { if (!dni.matches("[0-9]{8}")) throw new ApiError(400, "El DNI debe tener 8 dígitos."); }

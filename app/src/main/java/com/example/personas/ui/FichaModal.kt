@@ -38,7 +38,7 @@ internal fun FichaModal(s: Pantalla, vm: PersonasViewModel, camera: () -> Unit, 
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(when (s.modo) { "nuevo" -> "Nueva persona"; "editar" -> "Editar persona"; else -> "Ficha de persona" },
                             Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        IconButton(onClick = vm::cerrar, enabled = !s.ocupado) {
+                        IconButton(onClick = { focus.clearFocus(); vm.cerrar() }, enabled = !s.ocupado) {
                             AppIcon(Symbol.Close, color = MaterialTheme.colorScheme.onSurfaceVariant, description = "Cerrar ficha")
                         }
                     }

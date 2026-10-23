@@ -31,4 +31,5 @@ def load_postgres(root):
     if not parsed.hostname or parsed.username or parsed.query or parsed.fragment:
         raise ValueError('DB_URL must contain a host and database without credentials or parameters')
     env['PGPASSWORD'] = env['DB_PASSWORD']
+    env['PGCLIENTENCODING'] = 'UTF8'
     return env, PostgresConfig(parsed.hostname, parsed.port or 5432, env['DB_USER'])

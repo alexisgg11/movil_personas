@@ -9,21 +9,27 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import org.json.JSONObject
 import java.io.IOException
 
 class PersonasViewModel(
     private val repository: PersonasRepository,
     private val fotos: FotosRepository,
-    private val saved: SavedStateHandle
+    private val saved: SavedStateHandle,
+    private val ubigeo: UbigeoRepository
 ) : ViewModel() {
     private var catalogVersion = 0
+    private var ubicacionVersion = 0
+    private var ubicacionJob: Job? = null
     private val mutable = MutableStateFlow(Pantalla(
         busqueda = saved["busqueda"] ?: "",
         persona = runCatching { saved.get<String>("persona")?.let { parsePersona(JSONObject(it)) } }.getOrNull(),
         modo = saved["modo"] ?: "",
         borrador = runCatching { saved.get<String>("borrador")?.let(::parseBorrador) }.getOrNull() ?: Borrador(),
-        tab = saved["tab"] ?: 0
+        tab = saved["tab"] ?: 0,
+        direccionAbierta = saved["direccionAbierta"] ?: false,
+        direccionBorrador = runCatching { saved.get<String>("direccionBorrador")?.let { parseDireccion(JSONObject(it)) } }.getOrNull() ?: Direccion()
     ))
     val state = mutable.asStateFlow()
     private fun update(block: (Pantalla) -> Pantalla) {
@@ -31,6 +37,7 @@ class PersonasViewModel(
         val s = mutable.value
         saved["busqueda"] = s.busqueda; saved["modo"] = s.modo; saved["borrador"] = s.borrador.json(); saved["tab"] = s.tab
         saved["persona"] = s.persona?.json()
+        saved["direccionAbierta"] = s.direccionAbierta; saved["direccionBorrador"] = s.direccionBorrador.jsonObject().toString()
     }
     private fun error(e: Exception): String = when (e) {
         is ApiException -> e.message ?: "Revisa los datos."
@@ -56,7 +63,7 @@ class PersonasViewModel(
     fun redPermitida(permitida: Boolean) {
         val changed = mutable.value.redPermitida != permitida
         update { it.copy(redPermitida = permitida) }
-        if (permitida && changed) cargarProfesiones()
+        if (permitida && changed) { cargarProfesiones(); if (mutable.value.direccionAbierta) cargarUbicacion() }
     }
     private fun puedeConectar(mostrarAviso: Boolean = true): Boolean {
         if (!mutable.value.redPermitida) { update { it.copy(error = "Permite el acceso a la red local para continuar.", aviso = if (mostrarAviso) Aviso("Conexión", "Permite el acceso a la red local para continuar.") else it.aviso) }; return false }
@@ -176,6 +183,61 @@ class PersonasViewModel(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { update { it.copy(errorProfesion = error(e)) } }
             finally { update { it.copy(ocupado = false) } }
+        }
+    }
+    fun abrirDireccion() {
+        if (mutable.value.ocupado) return
+        update { it.copy(direccionAbierta = true, direccionBorrador = it.borrador.direccion, erroresDireccion = emptyMap(), errorUbigeo = null) }
+        cargarUbicacion()
+    }
+    fun cerrarDireccion() {
+        ubicacionVersion++; ubicacionJob?.cancel()
+        update { it.copy(direccionAbierta = false, cargandoUbigeo = false, errorUbigeo = null, erroresDireccion = emptyMap()) }
+    }
+    fun detalleDireccion(value: String) { update { it.copy(direccionBorrador = it.direccionBorrador.copy(detalle = value.take(200)), erroresDireccion = it.erroresDireccion - "detalle") } }
+    fun regionDireccion(id: String) {
+        val region = mutable.value.regiones.find { it.id == id } ?: return
+        if (mutable.value.direccionBorrador.regionId == id) return
+        update { it.copy(direccionBorrador = Direccion(id = it.direccionBorrador.id, detalle = it.direccionBorrador.detalle, regionId = region.id, region = region.nombre), provincias = emptyList(), distritos = emptyList(), erroresDireccion = emptyMap()) }
+        cargarUbicacion()
+    }
+    fun provinciaDireccion(id: String) {
+        val provincia = mutable.value.provincias.find { it.id == id && it.regionId == mutable.value.direccionBorrador.regionId } ?: return
+        if (mutable.value.direccionBorrador.provinciaId == id) return
+        update { it.copy(direccionBorrador = it.direccionBorrador.copy(provinciaId = provincia.id, provincia = provincia.nombre, distritoId = "", distrito = ""), distritos = emptyList(), erroresDireccion = emptyMap()) }
+        cargarUbicacion()
+    }
+    fun distritoDireccion(id: String) {
+        val distrito = mutable.value.distritos.find { it.id == id && it.provinciaId == mutable.value.direccionBorrador.provinciaId } ?: return
+        update { it.copy(direccionBorrador = it.direccionBorrador.copy(distritoId = distrito.id, distrito = distrito.nombre), erroresDireccion = it.erroresDireccion - "distrito") }
+    }
+    fun aceptarDireccion() {
+        val d = mutable.value.direccionBorrador
+        val errores = buildMap {
+            if (d.regionId.isBlank()) put("region", "Selecciona una región.")
+            if (d.provinciaId.isBlank()) put("provincia", "Selecciona una provincia.")
+            if (d.distritoId.isBlank()) put("distrito", "Selecciona un distrito.")
+            if (d.detalle.isBlank()) put("detalle", "Ingresa la vía y el número, manzana o lote.")
+        }
+        if (errores.isNotEmpty() || !d.completa) { update { it.copy(erroresDireccion = errores) }; return }
+        update { it.copy(borrador = it.borrador.copy(direccion = d.copy(detalle = d.detalle.trim())), direccionAbierta = false, errores = it.errores - "direccion") }
+    }
+    fun cargarUbicacion() {
+        if (!mutable.value.direccionAbierta) return
+        ubicacionJob?.cancel()
+        val version = ++ubicacionVersion
+        update { it.copy(cargandoUbigeo = true, errorUbigeo = null) }
+        ubicacionJob = viewModelScope.launch {
+            try {
+                if (!puedeConectar(false)) throw IOException("Sin conexión")
+                val regiones = ubigeo.regiones()
+                val seleccion = mutable.value.direccionBorrador
+                val provincias = if (seleccion.regionId.isNotBlank()) ubigeo.provincias(seleccion.regionId) else emptyList()
+                val distritos = if (seleccion.provinciaId.isNotBlank()) ubigeo.distritos(seleccion.provinciaId) else emptyList()
+                if (version == ubicacionVersion) update { it.copy(regiones = regiones, provincias = provincias, distritos = distritos) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (version == ubicacionVersion) update { it.copy(errorUbigeo = error(e)) } }
+            finally { if (version == ubicacionVersion) update { it.copy(cargandoUbigeo = false) } }
         }
     }
     fun prepararCamara(): String? = try {

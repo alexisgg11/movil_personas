@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ValidacionTest {
-    private val valido = Borrador("01234567", "Alexis", "Sandoval", "Av. Sánchez Cerro 27, Piura", 1,
+    private val valido = Borrador("01234567", "Alexis", "Sandoval", Direccion(detalle = "Av. Sánchez Cerro 26", distritoId = "200101", distrito = "Piura", provinciaId = "2001", provincia = "Piura", regionId = "20", region = "Piura"), 1,
         "Docencia", "987654321", "alexis@correo.com", fotoLocal = "/foto.jpg")
     @Test fun dniConservaCeroInicialYExigeOchoDigitosAscii() {
         assertTrue(Validacion.dni("01234567"))
@@ -25,7 +25,7 @@ class ValidacionTest {
         assertTrue(Validacion.formulario(valido.copy(fotoLocal = "", fotoRemota = "/api/foto")).isEmpty())
         assertTrue("foto" in Validacion.formulario(valido.copy(fotoLocal = "")))
         assertTrue("nombres" in Validacion.formulario(valido.copy(nombres = " ")))
-        assertTrue("direccion" in Validacion.formulario(valido.copy(direccion = "x".repeat(201))))
+        assertTrue("direccion" in Validacion.formulario(valido.copy(direccion = valido.direccion.copy(detalle = "x".repeat(201)))))
     }
     @Test fun debugAceptaRedesPrivadasYReleaseExigeHttps() {
         listOf("http://127.0.0.1:8081", "http://10.0.2.2:8081", "http://192.168.1.2:8081", "http://172.16.0.2:8081").forEach {
@@ -41,12 +41,18 @@ class ValidacionTest {
         }
     }
     @Test fun camposSeValidanEnLaPestanaCorrespondiente() {
-        val soloDatos = valido.copy(direccion = "", celular = "", correo = "", fotoLocal = "")
+        val soloDatos = valido.copy(direccion = Direccion(), celular = "", correo = "", fotoLocal = "")
         assertTrue(Validacion.paso(soloDatos, 0).isEmpty())
         assertEquals(setOf("direccion", "celular", "correo"), Validacion.paso(soloDatos, 1).keys)
         assertEquals(setOf("foto"), Validacion.paso(soloDatos, 2).keys)
         assertEquals(1, Validacion.seccion("direccion"))
         assertEquals(0, Validacion.seccion("profesionId"))
+    }
+    @Test fun direccionNoAdmiteUnaJerarquiaIncompatible() {
+        assertEquals("Av. Sánchez Cerro 26, Piura", valido.direccion.texto)
+        assertFalse(valido.direccion.copy(provinciaId = "1501").completa)
+        assertFalse(valido.direccion.copy(distritoId = "150101").completa)
+        assertFalse(valido.direccion.copy(regionId = "").completa)
     }
     @Test fun fichaTieneInicialesYNombreSinEspaciosSobrantes() {
         assertEquals("AS", valido.iniciales)

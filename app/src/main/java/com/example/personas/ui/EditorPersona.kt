@@ -38,8 +38,7 @@ internal fun EditorPersona(s: Pantalla, vm: PersonasViewModel, compacto: Boolean
         when (s.tab) {
             0 -> DatosPersona(s, vm)
             1 -> {
-                Campo("Dirección", d.direccion, "Av. Sánchez Cerro 27, Piura", s.errores["direccion"], !s.ocupado,
-                    multilinea = true) { valor -> vm.cambiar { it.copy(direccion = valor.take(200)) } }
+                DireccionCampo(s, vm::abrirDireccion)
                 Campo("Celular", d.celular, "Ej. 987654321", s.errores["celular"], !s.ocupado, KeyboardType.Phone) { valor ->
                     vm.cambiar { it.copy(celular = valor.filter { c -> c in '0'..'9' }.take(9)) }
                 }

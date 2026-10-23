@@ -16,7 +16,7 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class PersonasViewModelTest {
     private val dispatcher = StandardTestDispatcher()
-    private val valido = Borrador("01234567", "Alexis", "Sandoval", "Piura", 1,
+    private val valido = Borrador("01234567", "Alexis", "Sandoval", Direccion(detalle = "Av. Sánchez Cerro 26", distritoId = "200101", distrito = "Piura", provinciaId = "2001", provincia = "Piura", regionId = "20", region = "Piura"), 1,
         "Docencia", "987654321", "alexis@example.com", fotoLocal = "/borrador.jpg")
     private val personas = PersonasFalsas()
     private val fotos = FotosFalsas()
@@ -25,7 +25,7 @@ class PersonasViewModelTest {
 
     @Before fun preparar() {
         Dispatchers.setMain(dispatcher)
-        vm = PersonasViewModel(personas, fotos, saved)
+        vm = PersonasViewModel(personas, fotos, saved, UbigeosFalsos())
         vm.redPermitida(true)
     }
     @After fun limpiar() { Dispatchers.resetMain() }
@@ -65,7 +65,7 @@ class PersonasViewModelTest {
         vm.nuevo(); vm.cambiar { valido.copy(fotoLocal = "") }
         assertEquals("content://captura", vm.prepararCamara())
         val restaurado = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
-        val otra = PersonasViewModel(personas, fotos, restaurado)
+        val otra = PersonasViewModel(personas, fotos, restaurado, UbigeosFalsos())
         otra.camaraTerminada(true); advanceUntilIdle()
         assertEquals("Alexis", otra.state.value.borrador.nombres)
         assertEquals("/importada.jpg", otra.state.value.borrador.fotoLocal)
@@ -100,6 +100,34 @@ class PersonasViewModelTest {
         vm.busqueda("01234567"); vm.buscar(); advanceUntilIdle(); vm.nuevo()
         assertEquals(Borrador(), vm.state.value.borrador)
         assertEquals("nuevo", vm.state.value.modo)
+    }
+
+    @Test fun cambiarRegionLimpiaLosHijosYCancelarConservaLaDireccionOriginal() = runTest {
+        vm.nuevo(); vm.cambiar { valido }; vm.abrirDireccion(); advanceUntilIdle()
+        vm.regionDireccion("15"); advanceUntilIdle()
+        assertEquals("", vm.state.value.direccionBorrador.provinciaId)
+        assertEquals("", vm.state.value.direccionBorrador.distritoId)
+        assertTrue(vm.state.value.distritos.isEmpty())
+        vm.cerrarDireccion()
+        assertEquals(valido.direccion, vm.state.value.borrador.direccion)
+    }
+    @Test fun direccionSeConfirmaSoloConUbigeoCompletoYSeRecuperaElBorrador() = runTest {
+        vm.nuevo(); vm.abrirDireccion(); advanceUntilIdle(); vm.aceptarDireccion()
+        assertTrue(vm.state.value.direccionAbierta)
+        assertTrue("distrito" in vm.state.value.erroresDireccion)
+        vm.regionDireccion("20"); advanceUntilIdle(); vm.provinciaDireccion("2001"); advanceUntilIdle()
+        vm.distritoDireccion("200101"); vm.detalleDireccion("Av. Sánchez Cerro 26")
+        val restaurado = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
+        val otra = PersonasViewModel(personas, fotos, restaurado, UbigeosFalsos())
+        assertTrue(otra.state.value.direccionAbierta)
+        otra.aceptarDireccion()
+        assertEquals("Av. Sánchez Cerro 26, Piura", otra.state.value.borrador.direccion.texto)
+        assertFalse(otra.state.value.direccionAbierta)
+    }
+    private class UbigeosFalsos : UbigeoRepository {
+        override suspend fun regiones() = listOf(Region("20", "Piura"), Region("15", "Lima"))
+        override suspend fun provincias(regionId: String) = listOf(Provincia(regionId + "01", if (regionId == "20") "Piura" else "Lima", regionId))
+        override suspend fun distritos(provinciaId: String) = listOf(Distrito(provinciaId + "01", if (provinciaId == "2001") "Piura" else "Lima", provinciaId))
     }
 
     private fun persona(d: Borrador) = Persona(d.dni, d.nombres, d.apellidos, d.direccion,

@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.personas.domain.Persona
+import com.example.personas.domain.Direccion
 import com.example.personas.ui.ResultadoPersona
 import com.example.personas.ui.theme.PersonasTheme
 import org.junit.Assert.assertEquals
@@ -22,7 +23,7 @@ class FichaDisenoTest {
         var vistas = 0
         var ediciones = 0
         var eliminaciones = 0
-        val p = Persona("01234567", "Alexis", "Sandoval", "Piura", 1, "Arquitectura", "987654321", "alexis@correo.com", "")
+        val p = Persona("01234567", "Alexis", "Sandoval", Direccion(detalle = "Av. Sánchez Cerro 26", distritoId = "200101", distrito = "Piura", provinciaId = "2001", provincia = "Piura", regionId = "20", region = "Piura"), 1, "Arquitectura", "987654321", "alexis@correo.com", "")
         compose.setContent {
             PersonasTheme {
                 Box(Modifier.width(320.dp)) {

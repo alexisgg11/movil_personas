@@ -8,7 +8,8 @@ public class Persona {
     @Id @Column(length = 8) private String dni;
     @Column(nullable = false, length = 100) private String nombres;
     @Column(nullable = false, length = 100) private String apellidos;
-    @Column(nullable = false, length = 200) private String direccion;
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "direccion_id", nullable = false, unique = true) private Direccion direccion;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "profesion_id", nullable = false) private Profesion profesion;
     @Column(nullable = false, length = 9) private String celular;
@@ -18,7 +19,7 @@ public class Persona {
     @Column(nullable = false, length = 8) private EstadoPersona estado = EstadoPersona.ACTIVO;
     protected Persona() {}
     public Persona(String dni) { this.dni = dni; }
-    public void actualizar(String nombres, String apellidos, String direccion, Profesion profesion,
+    public void actualizar(String nombres, String apellidos, Direccion direccion, Profesion profesion,
                            String celular, String correo, String foto) {
         this.nombres = nombres; this.apellidos = apellidos; this.direccion = direccion;
         this.profesion = profesion; this.celular = celular; this.correo = correo; fotoRuta = foto;
@@ -28,7 +29,7 @@ public class Persona {
     public String getDni() { return dni; }
     public String getNombres() { return nombres; }
     public String getApellidos() { return apellidos; }
-    public String getDireccion() { return direccion; }
+    public Direccion getDireccion() { return direccion; }
     public Profesion getProfesion() { return profesion; }
     public String getCelular() { return celular; }
     public String getCorreo() { return correo; }

@@ -2,7 +2,7 @@ package com.example.personas.domain
 
 data class Borrador(
     val dni: String = "", val nombres: String = "", val apellidos: String = "",
-    val direccion: String = "", val profesionId: Long = 0, val profesion: String = "",
+    val direccion: Direccion = Direccion(), val profesionId: Long = 0, val profesion: String = "",
     val celular: String = "", val correo: String = "", val fotoLocal: String = "",
     val fotoRemota: String = ""
 ) {

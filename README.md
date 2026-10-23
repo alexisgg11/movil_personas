@@ -69,9 +69,15 @@ El **Query Tool** permite consultar la ficha y su profesión:
 
 ```sql
 SELECT p.dni, p.nombres, p.apellidos, pr.nombre AS profesion,
-       p.direccion, p.celular, p.correo, p.foto_ruta, p.estado
+       concat_ws(', ', d.detalle, di.nombre) AS direccion,
+       pv.nombre AS provincia, r.nombre AS region,
+       p.celular, p.correo, p.foto_ruta, p.estado
 FROM personas.persona AS p
 JOIN personas.profesion AS pr ON pr.id = p.profesion_id
+JOIN personas.direccion AS d ON d.id = p.direccion_id
+JOIN personas.distrito AS di ON di.id = d.distrito_id
+JOIN personas.provincia AS pv ON pv.id = di.provincia_id
+JOIN personas.region AS r ON r.id = pv.region_id
 ORDER BY p.apellidos, p.nombres;
 ```
 
@@ -87,14 +93,14 @@ La [documentación de conexión de pgAdmin](https://www.pgadmin.org/docs/pgadmin
 
 ## Flujo de la aplicación
 
-La pantalla inicial contiene **Buscar por DNI** y **Nuevo**. Una búsqueda válida devuelve una ficha resumida con iconos para consultar, editar y eliminar. La selección del resumen abre la ficha completa.
+La pantalla inicial contiene **Buscar por DNI** y **Nuevo**. Una búsqueda válida devuelve una ficha resumida con iconos para consultar, editar y eliminar. La selección del resumen abre la ficha completa. La consulta muestra DNI, profesión, celular, correo y dirección en filas verticales con iconos.
 
 **Nuevo** presenta un borrador vacío. El formulario se distribuye en tres pestañas:
 
 | Pestaña | Contenido |
 | --- | --- |
 | Datos | DNI, nombres, apellidos y profesión. El catálogo incluye **Añadir profesión…**, que registra y selecciona una profesión nueva. |
-| Contacto | Dirección, celular y correo electrónico. La ficha superior refleja los cambios y separa el contacto con barras verticales. |
+| Contacto | Dirección, celular y correo electrónico. El campo de dirección abre una modal; la ficha superior refleja cada dato en una fila con su icono. |
 | Foto | **Tomar foto** y **Adjuntar foto**. Cuando existe una imagen, las acciones cambian a **Volver a tomar** y **Reemplazar foto**. |
 
 **Siguiente** valida la sección actual. **Guardar** valida el formulario completo y presenta una confirmación. Durante la edición, el DNI permanece bloqueado y la fotografía anterior se conserva hasta seleccionar un reemplazo. El cierre de un formulario modificado y la eliminación requieren confirmación.
@@ -159,6 +165,9 @@ Las rutas Kotlin siguientes son relativas a `app/src/main/java/com/example/perso
 | `PersonasApplication.kt` | Mantiene el contenedor de dependencias durante la vida del proceso. |
 | `di/AppContainer.kt` | Construye las implementaciones de repositorios y la fábrica del ViewModel. La fábrica recibe el `SavedStateHandle` del ciclo de vida. |
 | `domain/Persona.kt` | Modelo de la ficha de una persona. |
+| `domain/Direccion.kt` | Dirección estructurada y representación de vía más distrito. |
+| `domain/Region.kt`, `Provincia.kt`, `Distrito.kt` | Modelos del catálogo y relación de cada selección con su padre. |
+| `domain/UbigeoRepository.kt` | Contrato de consulta de regiones, provincias y distritos. |
 | `domain/Profesion.kt` | Modelo del catálogo de profesiones. |
 | `domain/Borrador.kt` | Datos editables del formulario, fotografía pendiente e información de la ficha en vivo. |
 | `domain/CapturaFoto.kt` | Ruta del archivo temporal y URI que utiliza la cámara. |
@@ -167,6 +176,8 @@ Las rutas Kotlin siguientes son relativas a `app/src/main/java/com/example/perso
 | `domain/FotosRepository.kt` | Contrato de preparación de captura, importación y limpieza de archivos temporales. |
 | `domain/ServidorUrl.kt` | Política de validación del origen HTTP/HTTPS. |
 | `data/HttpPersonasRepository.kt` | Implementación HTTP del contrato de personas: JSON, multipart y traducción de errores de la API. |
+| `data/ApiClient.kt` | Conexiones HTTP, tiempos de espera, codificación y traducción compartida de errores. |
+| `data/HttpUbigeoRepository.kt` | Consulta del catálogo de ubicación mediante la API. |
 | `data/ApiException.kt` | Error de respuesta con código HTTP, mensaje y campos inválidos. |
 | `data/PersonaJson.kt` | Conversión JSON de personas y borradores, incluida la serialización del estado guardado. |
 | `data/ApiConfig.kt` | Resolución automática del origen de la API o lectura del origen definido al compilar. |
@@ -178,6 +189,7 @@ Las rutas Kotlin siguientes son relativas a `app/src/main/java/com/example/perso
 | `viewmodel/Aviso.kt` | Título y mensaje de los avisos de validación. |
 | `ui/PersonasApp.kt` | Pantalla inicial, resultados, permiso de red y lanzadores de cámara y galería. |
 | `ui/FichaModal.kt` | Contenedor de consulta/edición, título, cierre, desplazamiento y acciones. |
+| `ui/DireccionModal.kt` | Selección en cascada, datos de la vía y aceptación o cancelación de una dirección. |
 | `ui/EditorPersona.kt` | Campos, catálogo, pestañas y acciones de fotografía. |
 | `ui/FichaPersona.kt` | Resumen, ficha en vivo y detalle de consulta. |
 | `ui/FotoPersona.kt` | Representación de la fotografía, iniciales o marcador vacío. |
@@ -197,15 +209,21 @@ Las rutas Java siguientes son relativas a `backend/src/main/java/com/example/per
 | --- | --- |
 | `App.java` | Arranque de Spring Boot y carga de `.env`, respetando variables de entorno existentes. |
 | `controller/PersonaController.java` | Recepción HTTP, validación de DTO, delegación al servicio y respuestas HTTP; incluye la comprobación de disponibilidad. |
+| `controller/UbigeoController.java` | Rutas de consulta de regiones, provincias y distritos. |
 | `controller/ApiExceptionHandler.java` | Respuestas JSON consistentes para validación, duplicados, formato y tamaño de archivo. |
 | `dto/PersonaRequest.java`, `ProfesionRequest.java` | Contratos de entrada y validación del servidor. |
 | `dto/PersonaResponse.java`, `ProfesionResponse.java` | Contratos de salida con nombre de profesión y URL de fotografía. |
 | `service/PersonaService.java` | Reglas de negocio, transacciones, reserva del DNI, catálogo y acceso a personas activas. |
+| `service/DireccionService.java` | Resolución del distrito y persistencia transaccional de la dirección de una persona. |
+| `service/UbigeoService.java` | Consulta ordenada del catálogo con filtro por región o provincia. |
 | `service/FotoStorage.java` | Validación de imágenes, carpetas por DNI, nombres UUID y limpieza de archivos según el resultado de la transacción. |
 | `service/ApiError.java` | Error de negocio con código HTTP. |
 | `repository/PersonaRepository.java` | Consultas JPA, filtro por estado y bloqueo de filas durante modificaciones. |
 | `repository/ProfesionRepository.java` | Catálogo ordenado y búsqueda de nombres normalizados. |
 | `model/Persona.java`, `Profesion.java` | Entidades JPA y relación entre persona y profesión. |
+| `model/Direccion.java`, `Distrito.java`, `Provincia.java`, `Region.java` | Entidades de dirección y división territorial con sus relaciones JPA. |
+| `repository/DireccionRepository.java`, `DistritoRepository.java`, `ProvinciaRepository.java`, `RegionRepository.java` | Persistencia de direcciones y consultas del catálogo por su entidad padre. |
+| `dto/DireccionRequest.java`, `DireccionResponse.java`, `UbigeoResponse.java` | Contratos de dirección estructurada y elementos del catálogo. |
 | `model/EstadoPersona.java` | Estados `ACTIVO` e `INACTIVO`. |
 
 En `backend/src/main/resources`, `application.properties` define conexión, puerto, inicialización SQL y límites multipart. La carpeta `db` contiene:
@@ -215,6 +233,8 @@ En `backend/src/main/resources`, `application.properties` define conexión, puer
 | `schema.sql` | Tablas, claves, índice y restricciones. |
 | `data.sql` | Catálogo inicial sin duplicación en arranques posteriores. |
 | `migrate-estado.sql` | Conversión del indicador antiguo al campo `estado`, conservando activos e inactivos. |
+| `ubigeo.sql` | Catálogo territorial con identificadores UBIGEO, sin duplicación en arranques posteriores. |
+| `migrate-direccion.sql` | Conversión de direcciones anteriores a claves foráneas, conservando personas y estados. |
 | `migrate-foto-ruta.sql` | Restricción de rutas de fotografía y correspondencia entre carpeta y DNI. |
 
 `backend/src/test` contiene validaciones y comprobaciones de almacenamiento transaccional. `pom.xml` define Java, Spring Boot, JPA, validación, PostgreSQL, dotenv y empaquetado. `.env.example` describe el formato de configuración. Si falta `.env`, Run copia la plantilla y señala los valores pendientes de configurar antes de conectar.
@@ -263,7 +283,7 @@ Durante un alta, Compose actualiza el borrador; el ViewModel valida y solicita c
 
 ## Modelo relacional y eliminación lógica
 
-El esquema `personas` contiene las tablas `profesion` y `persona`. Una profesión puede pertenecer a varias personas; cada persona requiere una profesión existente.
+El esquema `personas` contiene `persona`, `profesion`, `direccion`, `distrito`, `provincia` y `region`. Una profesión puede pertenecer a varias personas; cada persona requiere una profesión y una dirección propias. Cada dirección pertenece a un distrito, cada distrito a una provincia y cada provincia a una región.
 
 | Tabla / columna | Tipo y restricción |
 | --- | --- |
@@ -272,16 +292,35 @@ El esquema `personas` contiene las tablas `profesion` y `persona`. Una profesió
 | `profesion.nombre_clave` | `VARCHAR(80) UNIQUE`, normalizado sin diferencias de tildes, mayúsculas o espacios repetidos. |
 | `persona.dni` | `VARCHAR(8) PRIMARY KEY`, ocho dígitos con conservación de ceros iniciales. |
 | `persona.nombres`, `persona.apellidos` | `VARCHAR(100)`, obligatorios. |
-| `persona.direccion` | `VARCHAR(200)`, obligatoria. |
+| `persona.direccion_id` | `BIGINT NOT NULL UNIQUE`, clave foránea a `direccion.id`. La edición de una dirección no modifica la de otra persona. |
+| `direccion.id` | `BIGINT`, identidad y clave primaria. |
+| `direccion.detalle` | `VARCHAR(200)`, vía, número y datos complementarios obligatorios. |
+| `direccion.distrito_id` | `VARCHAR(6) NOT NULL`, clave foránea a `distrito.id`. |
+| `distrito.id`, `distrito.provincia_id` | UBIGEO de seis dígitos y clave foránea a `provincia.id`. El prefijo debe corresponder a esa provincia. |
+| `provincia.id`, `provincia.region_id` | UBIGEO de cuatro dígitos y clave foránea a `region.id`. El prefijo debe corresponder a esa región. |
+| `region.id` | UBIGEO de dos dígitos, clave primaria. |
+| `region.nombre`, `provincia.nombre`, `distrito.nombre` | `VARCHAR(100)`, nombres del catálogo. |
 | `persona.profesion_id` | `BIGINT NOT NULL`, clave foránea a `profesion.id`, índice y `ON DELETE RESTRICT`. |
 | `persona.celular` | `VARCHAR(9)`, nueve dígitos con inicio en 9. |
 | `persona.correo` | `VARCHAR(180)`, obligatorio y con formato de correo. |
 | `persona.foto_ruta` | `VARCHAR(80)`, ruta relativa de la fotografía. La carpeta, cuando está presente, debe coincidir con el DNI. |
 | `persona.estado` | `VARCHAR(8) NOT NULL DEFAULT 'ACTIVO'`, limitado a `ACTIVO` o `INACTIVO`. |
 
-La eliminación cambia el estado a `INACTIVO` y conserva la fila y su fotografía. Las búsquedas, ediciones y descargas de foto excluyen los registros inactivos. El DNI permanece reservado; la clave primaria protege también frente a altas simultáneas.
+La eliminación cambia el estado a `INACTIVO` y conserva la persona, su dirección y su fotografía. Las búsquedas, ediciones y descargas de foto excluyen los registros inactivos. El DNI permanece reservado; la clave primaria protege también frente a altas simultáneas.
 
 Las validaciones de Android proporcionan avisos inmediatos. La API valida cualquier solicitud y PostgreSQL aplica restricciones de integridad. Hibernate utiliza `ddl-auto=validate`; los archivos SQL controlan el esquema.
+
+## Registro de dirección
+
+El campo **Dirección** abre una modal con **Región**, **Provincia**, **Distrito** y **Vía y número**. La provincia se habilita después de seleccionar una región; el distrito se habilita después de seleccionar una provincia. Cambiar una selección elimina sus selecciones dependientes. **Cancelar** conserva la dirección anterior; **Aceptar** valida los campos y actualiza la ficha.
+
+Una vía `Av. Sánchez Cerro 26` asociada al distrito `Piura` se muestra como `Av. Sánchez Cerro 26, Piura`. La concatenación se utiliza para presentación. La solicitud envía `direccion.detalle` y `direccion.distritoId`; el servidor obtiene provincia y región a través de las claves foráneas. La persona guarda únicamente `direccion_id`.
+
+Las relaciones utilizan `NOT NULL`, claves foráneas y `ON DELETE RESTRICT`. El identificador de provincia incorpora el de su región y el identificador de distrito incorpora el de su provincia; restricciones `CHECK` protegen esa correspondencia. La dirección se crea o actualiza en la misma transacción que la persona. Un error no deja direcciones ni fotografías huérfanas.
+
+El catálogo incluido procede del [listado de ubigeos INEI publicado en la Plataforma Nacional de Datos Abiertos](https://www.datosabiertos.gob.pe/dataset/datos-de-registros-de-nacidos-vivos/resource/573f433b-0d44-46e2-932e-14abb9757860), con fecha de publicación 17 de septiembre de 2025: 25 regiones, 196 provincias y 1892 distritos. Su contenido se encuentra en `backend/src/main/resources/db/ubigeo.sql`.
+
+La migración de registros anteriores conserva el texto de la vía y resuelve el distrito cuando su nombre final identifica una sola entrada del catálogo. El nombre anterior `26 de Octubre` se reconoce como `Veintiseis de Octubre`. Una dirección ambigua detiene la migración antes de retirar el texto original; requiere identificar su distrito. La repetición del arranque no duplica direcciones ya migradas.
 
 ## Almacenamiento de fotografías
 
@@ -313,11 +352,16 @@ Un reemplazo crea un archivo nuevo en la misma carpeta. El commit elimina la fot
 
 La captura utiliza `ActivityResultContracts.TakePicture` con `FileProvider` y la cámara instalada en el dispositivo. `PickVisualMedia` abre el selector de Android. La aplicación delega la captura y no declara permiso `CAMERA` ni acceso general al almacenamiento. La importación limita el tamaño, corrige la orientación EXIF y convierte a JPEG antes del envío. La API valida el contenido real, con límite de 10 MB y 24 millones de píxeles.
 
+En un teléfono, la captura abre su cámara instalada. En el emulador, la imagen depende de la cámara configurada en el dispositivo virtual: una escena virtual muestra contenido simulado. **Device Manager → Edit → Show Advanced Settings → Camera** permite seleccionar la webcam del equipo y reiniciar el emulador. Las opciones están descritas en la [documentación del emulador](https://developer.android.com/studio/run/emulator-commandline#common).
+
 ## API HTTP
 
 | Método | Ruta | Operación |
 | --- | --- | --- |
 | GET | `/api/health` | Disponibilidad de API/PostgreSQL, instancia y versión. |
+| GET | `/api/ubigeo/regiones` | Regiones del catálogo. |
+| GET | `/api/ubigeo/regiones/{id}/provincias` | Provincias de la región seleccionada. |
+| GET | `/api/ubigeo/provincias/{id}/distritos` | Distritos de la provincia seleccionada. |
 | GET / POST | `/api/profesiones` | Catálogo o nueva profesión con JSON `nombre`. |
 | POST | `/api/personas` | Alta multipart con `datos` JSON y `foto`. |
 | GET | `/api/personas/{dni}` | Ficha de persona activa. |

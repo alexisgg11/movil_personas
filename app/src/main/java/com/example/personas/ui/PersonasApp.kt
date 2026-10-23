@@ -96,5 +96,6 @@ fun PersonasApp(vm: PersonasViewModel) {
             catch (_: Exception) { vm.informar("No se pudo abrir el selector de fotografías.") }
         })
     }
+    if (s.direccionAbierta) DireccionModal(s, vm)
     DialogosPersona(s, vm)
 }

@@ -27,8 +27,8 @@ internal fun ResultadoPersona(p: Persona, foto: String, habilitado: Boolean, ver
                     FotoPersona(foto, Borrador.de(p).iniciales, Modifier.size(64.dp, 72.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("${p.nombres} ${p.apellidos}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(p.profesion, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("DNI ${p.dni}", style = MaterialTheme.typography.bodyMedium)
+                        FilaResumen(Symbol.Briefcase, p.profesion)
+                        FilaResumen(Symbol.IdCard, "DNI ${p.dni}")
                     }
                     AppIcon(Symbol.ChevronRight, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -54,34 +54,44 @@ private fun AccionFicha(simbolo: Symbol, descripcion: String, habilitado: Boolea
 
 @Composable
 internal fun FichaEnVivo(d: Borrador, foto: String, contacto: Boolean, compacto: Boolean) {
-    Row(Modifier.fillMaxWidth().testTag("ficha-en-vivo"), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        FotoPersona(foto, d.iniciales, Modifier.size(if (compacto) 64.dp else 76.dp, if (compacto) 72.dp else 84.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(d.nombreCompleto.ifBlank { "Nombre y apellidos" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(d.profesion.ifBlank { "Profesión" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val detalle = if (contacto) listOf(d.celular, d.correo, d.direccion).filter { it.isNotBlank() }.joinToString(" | ") else ""
-            Text(detalle.ifBlank { "DNI ${d.dni.ifBlank { "--------" }}" }, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("resumen-contacto"))
+    Column(Modifier.fillMaxWidth().testTag("ficha-en-vivo"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            FotoPersona(foto, d.iniciales, Modifier.size(if (compacto) 64.dp else 72.dp, if (compacto) 72.dp else 80.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(d.nombreCompleto.ifBlank { "Nombre y apellidos" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                FilaResumen(Symbol.Briefcase, d.profesion.ifBlank { "Profesión" })
+                FilaResumen(Symbol.IdCard, "DNI ${d.dni.ifBlank { "--------" }}")
+            }
         }
+        if (contacto) Column(Modifier.testTag("resumen-contacto"), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            if (d.celular.isNotBlank()) FilaResumen(Symbol.Phone, d.celular)
+            if (d.correo.isNotBlank()) FilaResumen(Symbol.Mail, d.correo)
+            if (d.direccion.texto.isNotBlank()) FilaResumen(Symbol.Home, d.direccion.texto)
+        }
+    }
+}
+
+@Composable
+internal fun FilaResumen(simbolo: Symbol, texto: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        AppIcon(simbolo, Modifier.size(18.dp).padding(top = 1.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(texto, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 internal fun DetallePersona(p: Persona, foto: String) {
     SelectionContainer {
-        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                FotoPersona(foto, Borrador.de(p).iniciales, Modifier.size(88.dp, 96.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${p.nombres} ${p.apellidos}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text(p.profesion, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("DNI ${p.dni}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                FotoPersona(foto, Borrador.de(p).iniciales, Modifier.size(80.dp, 88.dp))
+                Text("${p.nombres} ${p.apellidos}", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             }
-            DatoContacto(Symbol.Location, "Dirección", p.direccion)
+            DatoContacto(Symbol.IdCard, "DNI", p.dni)
+            DatoContacto(Symbol.Briefcase, "Profesión", p.profesion)
             DatoContacto(Symbol.Phone, "Celular", p.celular)
             DatoContacto(Symbol.Mail, "Correo electrónico", p.correo)
-            Spacer(Modifier.height(2.dp))
+            DatoContacto(Symbol.Home, "Dirección", p.direccion.texto)
         }
     }
 }
@@ -89,8 +99,8 @@ internal fun DetallePersona(p: Persona, foto: String) {
 @Composable
 private fun DatoContacto(simbolo: Symbol, titulo: String, valor: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        AppIcon(simbolo, Modifier.padding(top = 3.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        AppIcon(simbolo, Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.primary)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(titulo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(valor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
         }
