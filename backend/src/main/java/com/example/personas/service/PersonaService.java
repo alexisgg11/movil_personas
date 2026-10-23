@@ -45,7 +45,7 @@ public class PersonaService {
     public PersonaResponse actualizar(String dni, PersonaRequest datos, MultipartFile foto) {
         validarDni(dni);
         if (!dni.equals(datos.dni())) throw new ApiError(400, "El DNI de un registro no se puede cambiar.");
-        Persona persona = personas.bloquear(dni, EstadoPersona.ACTIVO).orElseThrow(() -> new ApiError(404, "Persona no encontrada."));
+        Persona persona = personas.bloquear(dni, true).orElseThrow(() -> new ApiError(404, "Persona no encontrada."));
         Profesion profesion = profesion(datos.profesionId());
         String ruta = foto == null || foto.isEmpty() ? persona.getFotoRuta() : fotos.guardar(dni, foto, persona.getFotoRuta());
         aplicarDatos(persona, datos, profesion, ruta); em.flush();
@@ -53,10 +53,10 @@ public class PersonaService {
     }
     public void eliminar(String dni) {
         validarDni(dni);
-        personas.bloquear(dni, EstadoPersona.ACTIVO).orElseThrow(() -> new ApiError(404, "Persona no encontrada.")).eliminar();
+        personas.bloquear(dni, true).orElseThrow(() -> new ApiError(404, "Persona no encontrada.")).eliminar();
     }
     private Persona activa(String dni) {
-        validarDni(dni); return personas.findByDniAndEstado(dni, EstadoPersona.ACTIVO).orElseThrow(() -> new ApiError(404, "No se encontró una persona con ese DNI."));
+        validarDni(dni); return personas.findByDniAndEstado(dni, true).orElseThrow(() -> new ApiError(404, "No se encontró una persona con ese DNI."));
     }
     private void aplicarDatos(Persona persona, PersonaRequest d, Profesion profesion, String foto) {
         persona.actualizar(d.nombres(), d.apellidos(), direcciones.guardar(d.direccion(), persona.getDireccion()), profesion, d.celular(), d.correo(), foto);

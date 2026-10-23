@@ -70,7 +70,7 @@ try:
     sql('postgres', 'CREATE DATABASE ' + DATABASE)
     created = True
     schema = (ROOT / 'backend/src/main/resources/db/schema.sql').read_text(encoding='utf-8')
-    legacy_schema = schema.replace("estado VARCHAR(8) NOT NULL DEFAULT 'ACTIVO',\n    CONSTRAINT ck_persona_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'))", 'activo BOOLEAN NOT NULL DEFAULT TRUE')
+    legacy_schema = schema.replace('estado BOOLEAN NOT NULL DEFAULT TRUE', 'activo BOOLEAN NOT NULL DEFAULT TRUE')
     legacy_schema = legacy_schema.replace("    direccion_id BIGINT NOT NULL,\n    CONSTRAINT fk_persona_direccion FOREIGN KEY (direccion_id) REFERENCES personas.direccion(id) ON DELETE RESTRICT,\n    CONSTRAINT uq_persona_direccion UNIQUE (direccion_id),", "    direccion VARCHAR(200) NOT NULL CHECK (length(trim(direccion)) > 0),")
     assert legacy_schema != schema and 'direccion VARCHAR(200)' in legacy_schema
     sql(DATABASE, legacy_schema)
@@ -105,14 +105,33 @@ try:
         time.sleep(.5)
     else:
         raise RuntimeError('Test API did not become ready')
-    check('health backed by PostgreSQL', 200, request('GET', '/api/health'))
-    assert sql(DATABASE, "SELECT string_agg(estado,',' ORDER BY dni) FROM personas.persona") == 'ACTIVO,INACTIVO,INACTIVO'
+    assert check('health backed by PostgreSQL', 200, request('GET', '/api/health'))['disponible'] is True
+    assert sql(DATABASE, "SELECT string_agg(estado::text,',' ORDER BY dni) FROM personas.persona") == 'true,false,false'
     migration = (ROOT / 'backend/src/main/resources/db/migrate-estado.sql').read_text(encoding='utf-8')
     sql(DATABASE, migration)
     sql(DATABASE, migration)
-    assert sql(DATABASE, "SELECT string_agg(estado,',' ORDER BY dni) FROM personas.persona") == 'ACTIVO,INACTIVO,INACTIVO'
+    assert sql(DATABASE, "SELECT string_agg(estado::text,',' ORDER BY dni) FROM personas.persona") == 'true,false,false'
     assert sql(DATABASE, "SELECT count(*) FROM information_schema.columns WHERE table_schema='personas' AND table_name='persona' AND column_name='activo'") == '0'
     checks.append('legacy state migration preserves active and inactive records on repeated startup')
+    assert sql(DATABASE, "SELECT data_type FROM information_schema.columns WHERE table_schema='personas' AND table_name='persona' AND column_name='estado'") == 'boolean'
+    sql(DATABASE, "ALTER TABLE personas.persona ALTER COLUMN estado DROP DEFAULT; ALTER TABLE personas.persona ALTER COLUMN estado TYPE VARCHAR(8) USING CASE WHEN estado THEN 'ACTIVO' ELSE 'INACTIVO' END; ALTER TABLE personas.persona ALTER COLUMN estado SET DEFAULT 'ACTIVO'; ALTER TABLE personas.persona ADD CONSTRAINT ck_persona_estado CHECK (estado IN ('ACTIVO','INACTIVO'))")
+    sql(DATABASE, migration)
+    sql(DATABASE, migration)
+    assert sql(DATABASE, "SELECT string_agg(estado::text,',' ORDER BY dni) FROM personas.persona") == 'true,false,false'
+    assert sql(DATABASE, "SELECT data_type FROM information_schema.columns WHERE table_schema='personas' AND table_name='persona' AND column_name='estado'") == 'boolean'
+    checks.append('text states convert to boolean and remain unchanged after repeated migration')
+    sql(DATABASE, "ALTER TABLE personas.persona ALTER COLUMN estado DROP DEFAULT; ALTER TABLE personas.persona ALTER COLUMN estado TYPE VARCHAR(8) USING CASE WHEN estado THEN 'ACTIVO' ELSE 'INACTIVO' END; UPDATE personas.persona SET estado='INVALIDO' WHERE dni='00111112'")
+    try:
+        sql(DATABASE, migration)
+    except RuntimeError:
+        assert sql(DATABASE, "SELECT estado FROM personas.persona WHERE dni='00111112'") == 'INVALIDO'
+        assert sql(DATABASE, "SELECT estado FROM personas.persona WHERE dni='00111113'") == 'INACTIVO'
+        checks.append('unknown legacy states stop migration atomically without reactivating records')
+    else:
+        raise AssertionError('Unknown state was silently converted')
+    sql(DATABASE, "UPDATE personas.persona SET estado='INACTIVO' WHERE dni='00111112'")
+    sql(DATABASE, migration)
+
     check('migrated inactive record hidden', 404, request('GET', '/api/personas/00111112'))
     address_migration = (ROOT / 'backend/src/main/resources/db/migrate-direccion.sql').read_text(encoding='utf-8')
     sql(DATABASE, address_migration)
@@ -182,7 +201,7 @@ try:
     exists = check('deleted DNI remains reserved', 200, request('GET', '/api/personas/01234567/existe'))
     assert exists['existe'] is True
     check('deleted DNI cannot be reused', 409, request('POST', '/api/personas', person, image(100), True))
-    assert sql(DATABASE, "SELECT estado FROM personas.persona WHERE dni='01234567'") == 'INACTIVO'
+    assert sql(DATABASE, "SELECT estado::text FROM personas.persona WHERE dni='01234567'") == 'false'
     assert sql(DATABASE, f'SELECT count(*) FROM personas.direccion WHERE id={address_id}') == '1'
     assert sql(DATABASE, 'SELECT count(*) FROM personas.direccion') == '5'
     checks.append('logical delete preserves the linked address without rollback or concurrency orphans')
@@ -196,6 +215,7 @@ try:
         ('referenced district cannot be removed', "DELETE FROM personas.distrito WHERE id='200101'"),
         ('address cannot be shared by different people', f"UPDATE personas.persona SET direccion_id={address_id} WHERE dni='02345678'"),
         ('database rejects another persons photo directory', "UPDATE personas.persona SET foto_ruta='02345678/00000000-0000-0000-0000-000000000001.jpg' WHERE dni='01234567'"),
+        ('database rejects null state', "UPDATE personas.persona SET estado=NULL WHERE dni='01234567'"),
         ('database rejects invalid state', "UPDATE personas.persona SET estado='BORRADO' WHERE dni='01234567'"),
         ('database rejects cellphone not starting with 9', "UPDATE personas.persona SET celular='887654321' WHERE dni='01234567'"),
         ('database rejects unknown profession FK', "UPDATE personas.persona SET profesion_id=999999 WHERE dni='01234567'"),

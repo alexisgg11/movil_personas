@@ -11,6 +11,7 @@ import com.example.personas.data.ArchivoFotosRepository
 import com.example.personas.data.HttpPersonasRepository
 import com.example.personas.domain.FotosRepository
 import com.example.personas.domain.PersonasRepository
+import com.example.personas.viewmodel.FormularioSavedState
 import com.example.personas.viewmodel.PersonasViewModel
 
 class AppContainer(context: Context) {
@@ -20,6 +21,6 @@ class AppContainer(context: Context) {
     private val fotos: FotosRepository = ArchivoFotosRepository(context)
 
     val viewModelFactory = viewModelFactory {
-        initializer { PersonasViewModel(personas, fotos, createSavedStateHandle(), ubigeo) }
+        initializer { PersonasViewModel(personas, fotos, FormularioSavedState(createSavedStateHandle()), ubigeo) }
     }
 }

@@ -1,7 +1,7 @@
 package com.example.personas
 
 import androidx.lifecycle.SavedStateHandle
-import com.example.personas.data.ApiException
+import com.example.personas.viewmodel.FormularioSavedState
 import com.example.personas.domain.*
 import com.example.personas.viewmodel.PersonasViewModel
 import kotlinx.coroutines.Dispatchers
@@ -21,11 +21,12 @@ class PersonasViewModelTest {
     private val personas = PersonasFalsas()
     private val fotos = FotosFalsas()
     private val saved = SavedStateHandle()
+    private val ubigeos = UbigeosFalsos()
     private lateinit var vm: PersonasViewModel
 
     @Before fun preparar() {
         Dispatchers.setMain(dispatcher)
-        vm = PersonasViewModel(personas, fotos, saved, UbigeosFalsos())
+        vm = PersonasViewModel(personas, fotos, FormularioSavedState(saved), ubigeos)
         vm.redPermitida(true)
     }
     @After fun limpiar() { Dispatchers.resetMain() }
@@ -65,13 +66,23 @@ class PersonasViewModelTest {
         vm.nuevo(); vm.cambiar { valido.copy(fotoLocal = "") }
         assertEquals("content://captura", vm.prepararCamara())
         val restaurado = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
-        val otra = PersonasViewModel(personas, fotos, restaurado, UbigeosFalsos())
+        val otra = PersonasViewModel(personas, fotos, FormularioSavedState(restaurado), UbigeosFalsos())
         otra.camaraTerminada(true); advanceUntilIdle()
         assertEquals("Alexis", otra.state.value.borrador.nombres)
         assertEquals("/importada.jpg", otra.state.value.borrador.fotoLocal)
         assertEquals("file:///captura.jpg", fotos.ultimoOrigen)
         assertTrue("/captura.jpg" in fotos.borrados)
         assertNull(restaurado.get<String>("captura"))
+    }
+
+    @Test fun fichaConsultadaSeRestauraConDireccionYFotografia() = runTest {
+        personas.persona = persona(valido)
+        vm.busqueda(valido.dni); vm.buscar(); advanceUntilIdle(); vm.ver()
+        val restaurado = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
+        val otra = PersonasViewModel(personas, fotos, FormularioSavedState(restaurado), UbigeosFalsos())
+        assertEquals(personas.persona, otra.state.value.persona)
+        assertEquals(valido.dni, otra.state.value.busqueda)
+        assertEquals("ver", otra.state.value.modo)
     }
 
     @Test fun falloDeGuardadoConservaElBorradorYPermiteReintentar() = runTest {
@@ -118,16 +129,68 @@ class PersonasViewModelTest {
         vm.regionDireccion("20"); advanceUntilIdle(); vm.provinciaDireccion("2001"); advanceUntilIdle()
         vm.distritoDireccion("200101"); vm.detalleDireccion("Av. Sánchez Cerro 26")
         val restaurado = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
-        val otra = PersonasViewModel(personas, fotos, restaurado, UbigeosFalsos())
+        val otra = PersonasViewModel(personas, fotos, FormularioSavedState(restaurado), UbigeosFalsos())
         assertTrue(otra.state.value.direccionAbierta)
         otra.aceptarDireccion()
         assertEquals("Av. Sánchez Cerro 26, Piura", otra.state.value.borrador.direccion.texto)
         assertFalse(otra.state.value.direccionAbierta)
     }
+    @Test fun direccionNuevaConsultaUnSoloNivelPorSeleccion() = runTest {
+        vm.nuevo(); vm.abrirDireccion(); advanceUntilIdle()
+        assertEquals(listOf("regiones"), ubigeos.consultas)
+        assertTrue(vm.state.value.provincias.isEmpty())
+        assertTrue(vm.state.value.distritos.isEmpty())
+        vm.provinciaDireccion("2001"); vm.distritoDireccion("200101"); advanceUntilIdle()
+        assertEquals(listOf("regiones"), ubigeos.consultas)
+        vm.regionDireccion("20"); advanceUntilIdle()
+        assertEquals(listOf("regiones", "provincias:20"), ubigeos.consultas)
+        assertTrue(vm.state.value.distritos.isEmpty())
+        vm.provinciaDireccion("2001"); advanceUntilIdle()
+        assertEquals(listOf("regiones", "provincias:20", "distritos:2001"), ubigeos.consultas)
+        vm.distritoDireccion("200101")
+        vm.regionDireccion("15")
+        assertTrue(vm.state.value.provincias.isEmpty())
+        assertTrue(vm.state.value.distritos.isEmpty())
+        assertEquals("", vm.state.value.direccionBorrador.distritoId)
+        advanceUntilIdle()
+        assertEquals("provincias:15", ubigeos.consultas.last())
+        assertEquals(4, ubigeos.consultas.size)
+        vm.cerrarDireccion(); vm.descartar(); vm.nuevo(); vm.abrirDireccion(); advanceUntilIdle()
+        assertTrue(vm.state.value.provincias.isEmpty())
+        assertTrue(vm.state.value.distritos.isEmpty())
+        assertEquals(4, ubigeos.consultas.size)
+    }
+
+    @Test fun reintentarUnNivelFallidoNoRecargaLosAnteriores() = runTest {
+        vm.nuevo(); vm.abrirDireccion(); advanceUntilIdle()
+        vm.regionDireccion("20"); advanceUntilIdle()
+        ubigeos.fallarDistritos = true
+        vm.provinciaDireccion("2001"); advanceUntilIdle()
+        assertNotNull(vm.state.value.errorUbigeo)
+        assertTrue(vm.state.value.distritos.isEmpty())
+        ubigeos.fallarDistritos = false
+        vm.cargarUbicacion(); advanceUntilIdle()
+        assertEquals(listOf("regiones", "provincias:20", "distritos:2001", "distritos:2001"), ubigeos.consultas)
+        assertNull(vm.state.value.errorUbigeo)
+        assertEquals("200101", vm.state.value.distritos.single().id)
+    }
+
     private class UbigeosFalsos : UbigeoRepository {
-        override suspend fun regiones() = listOf(Region("20", "Piura"), Region("15", "Lima"))
-        override suspend fun provincias(regionId: String) = listOf(Provincia(regionId + "01", if (regionId == "20") "Piura" else "Lima", regionId))
-        override suspend fun distritos(provinciaId: String) = listOf(Distrito(provinciaId + "01", if (provinciaId == "2001") "Piura" else "Lima", provinciaId))
+        val consultas = mutableListOf<String>()
+        var fallarDistritos = false
+        override suspend fun regiones(): List<Region> {
+            consultas.add("regiones")
+            return listOf(Region("20", "Piura"), Region("15", "Lima"))
+        }
+        override suspend fun provincias(regionId: String): List<Provincia> {
+            consultas.add("provincias:$regionId")
+            return listOf(Provincia(regionId + "01", if (regionId == "20") "Piura" else "Lima", regionId))
+        }
+        override suspend fun distritos(provinciaId: String): List<Distrito> {
+            consultas.add("distritos:$provinciaId")
+            if (fallarDistritos) throw IOException("Sin conexión")
+            return listOf(Distrito(provinciaId + "01", if (provinciaId == "2001") "Piura" else "Lima", provinciaId))
+        }
     }
 
     private fun persona(d: Borrador) = Persona(d.dni, d.nombres, d.apellidos, d.direccion,
@@ -143,7 +206,7 @@ class PersonasViewModelTest {
         override suspend fun profesiones() = listOf(Profesion(1, "Docencia"))
         override suspend fun crearProfesion(nombre: String) = Profesion(2, nombre)
         override suspend fun buscar(dni: String) = persona?.takeIf { activa && it.dni == dni }
-            ?: throw ApiException(404, "No encontrada")
+            ?: throw ErrorRepositorio(TipoErrorRepositorio.NO_ENCONTRADO, "No encontrada")
         override suspend fun existe(dni: String) = persona?.dni == dni
         override suspend fun eliminar(dni: String) { buscar(dni); activa = false }
         override suspend fun guardar(datos: Borrador, editar: Boolean): Persona {

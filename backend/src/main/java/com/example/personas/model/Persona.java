@@ -15,8 +15,7 @@ public class Persona {
     @Column(nullable = false, length = 9) private String celular;
     @Column(nullable = false, length = 180) private String correo;
     @Column(name = "foto_ruta", nullable = false, length = 80) private String fotoRuta;
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 8) private EstadoPersona estado = EstadoPersona.ACTIVO;
+    @Column(nullable = false) private boolean estado = true;
     protected Persona() {}
     public Persona(String dni) { this.dni = dni; }
     public void actualizar(String nombres, String apellidos, Direccion direccion, Profesion profesion,
@@ -24,8 +23,8 @@ public class Persona {
         this.nombres = nombres; this.apellidos = apellidos; this.direccion = direccion;
         this.profesion = profesion; this.celular = celular; this.correo = correo; fotoRuta = foto;
     }
-    public void eliminar() { estado = EstadoPersona.INACTIVO; }
-    public EstadoPersona getEstado() { return estado; }
+    public void eliminar() { estado = false; }
+    public boolean getEstado() { return estado; }
     public String getDni() { return dni; }
     public String getNombres() { return nombres; }
     public String getApellidos() { return apellidos; }

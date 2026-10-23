@@ -46,8 +46,8 @@ public class FotoStorage {
             borrar(nombre); throw new ApiError(400, "No se pudo leer la fotografía.");
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCompletion(int estado) {
-                if (estado != STATUS_COMMITTED) borrar(nombre);
+            @Override public void afterCompletion(int resultado) {
+                if (resultado != STATUS_COMMITTED) borrar(nombre);
                 else if (anterior != null) borrar(anterior);
             }
         });

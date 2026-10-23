@@ -15,9 +15,9 @@ public class PersonaController {
     private final PersonaService service;
     private final JdbcTemplate jdbc;
     public PersonaController(PersonaService service, JdbcTemplate jdbc) { this.service = service; this.jdbc = jdbc; }
-    @GetMapping("/health") public Map<String, String> health() {
+    @GetMapping("/health") public Map<String, Object> health() {
         jdbc.queryForObject("SELECT 1", Integer.class);
-        return Map.of("estado", "ok", "baseDatos", "PostgreSQL", "aplicacion", "personas",
+        return Map.of("disponible", true, "baseDatos", "PostgreSQL", "aplicacion", "personas",
             "instancia", System.getProperty("app.instance", "manual"), "version", System.getProperty("app.build", "manual"));
     }
     @GetMapping("/profesiones") public List<ProfesionResponse> profesiones() { return service.profesiones(); }

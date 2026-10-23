@@ -65,7 +65,7 @@ internal fun DireccionModal(s: Pantalla, vm: PersonasViewModel) {
                             !s.cargandoUbigeo && d.regionId.isNotBlank(), s.erroresDireccion["provincia"], vm::provinciaDireccion)
                         UbigeoCampo("Distrito", d.distrito, "Selecciona un distrito", s.distritos.map { it.id to it.nombre },
                             !s.cargandoUbigeo && d.provinciaId.isNotBlank(), s.erroresDireccion["distrito"], vm::distritoDireccion)
-                        Campo("Vía y número", d.detalle, "Ej. Av. Sánchez Cerro 26, interior 2", s.erroresDireccion["detalle"], multilinea = true,
+                        Campo("Vía y número", d.detalle, "Ej. Av. Sánchez Cerro 26, interior 2", s.erroresDireccion["detalle"], habilitado = d.distritoId.isNotBlank() && !s.cargandoUbigeo, multilinea = true,
                             cambio = vm::detalleDireccion)
                         if (d.detalle.isNotBlank() && d.distrito.isNotBlank()) FilaResumen(Symbol.Home, d.texto)
                         s.errorUbigeo?.let {

@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS personas.persona (
     foto_ruta VARCHAR(80) NOT NULL,
     CONSTRAINT ck_persona_foto_ruta CHECK (foto_ruta ~ '^([0-9]{8}/)?[0-9a-f-]{36}[.]jpg$'
         AND (foto_ruta NOT LIKE '%/%' OR split_part(foto_ruta, '/', 1) = dni)),
-    estado VARCHAR(8) NOT NULL DEFAULT 'ACTIVO',
-    CONSTRAINT ck_persona_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'))
+    estado BOOLEAN NOT NULL DEFAULT TRUE
 );
 CREATE INDEX IF NOT EXISTS ix_persona_profesion ON personas.persona(profesion_id);

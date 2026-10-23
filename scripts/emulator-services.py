@@ -53,7 +53,7 @@ try:
     while not stop.exists():
         if process.poll() is not None: raise RuntimeError('The emulator test API exited unexpectedly')
         time.sleep(.5)
-    print(json.dumps({'remainingPeople': sql(database, 'SELECT count(*) FROM personas.persona'), 'activePeople': sql(database, "SELECT count(*) FROM personas.persona WHERE estado='ACTIVO'")}), flush=True)
+    print(json.dumps({'remainingPeople': sql(database, 'SELECT count(*) FROM personas.persona'), 'activePeople': sql(database, "SELECT count(*) FROM personas.persona WHERE estado=true")}), flush=True)
 finally:
     if process and process.poll() is None:
         process.terminate()

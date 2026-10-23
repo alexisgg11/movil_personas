@@ -1,46 +1,32 @@
 package com.example.personas.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.example.personas.data.*
 import com.example.personas.domain.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
-import org.json.JSONObject
 import java.io.IOException
 
 class PersonasViewModel(
     private val repository: PersonasRepository,
     private val fotos: FotosRepository,
-    private val saved: SavedStateHandle,
+    private val saved: FormularioSavedState,
     private val ubigeo: UbigeoRepository
 ) : ViewModel() {
     private var catalogVersion = 0
     private var ubicacionVersion = 0
     private var ubicacionJob: Job? = null
-    private val mutable = MutableStateFlow(Pantalla(
-        busqueda = saved["busqueda"] ?: "",
-        persona = runCatching { saved.get<String>("persona")?.let { parsePersona(JSONObject(it)) } }.getOrNull(),
-        modo = saved["modo"] ?: "",
-        borrador = runCatching { saved.get<String>("borrador")?.let(::parseBorrador) }.getOrNull() ?: Borrador(),
-        tab = saved["tab"] ?: 0,
-        direccionAbierta = saved["direccionAbierta"] ?: false,
-        direccionBorrador = runCatching { saved.get<String>("direccionBorrador")?.let { parseDireccion(JSONObject(it)) } }.getOrNull() ?: Direccion()
-    ))
+    private val mutable = MutableStateFlow(saved.restaurar())
     val state = mutable.asStateFlow()
     private fun update(block: (Pantalla) -> Pantalla) {
         mutable.value = block(mutable.value)
-        val s = mutable.value
-        saved["busqueda"] = s.busqueda; saved["modo"] = s.modo; saved["borrador"] = s.borrador.json(); saved["tab"] = s.tab
-        saved["persona"] = s.persona?.json()
-        saved["direccionAbierta"] = s.direccionAbierta; saved["direccionBorrador"] = s.direccionBorrador.jsonObject().toString()
+        saved.guardar(mutable.value)
     }
     private fun error(e: Exception): String = when (e) {
-        is ApiException -> e.message ?: "Revisa los datos."
+        is ErrorRepositorio -> e.message ?: "Revisa los datos."
         is IOException -> "No se pudo conectar. Comprueba tu conexión y vuelve a intentarlo."
         is SecurityException -> "Permite el acceso a la red local para conectar con el servidor."
         else -> e.message ?: "No se pudo completar la operación. Vuelve a intentarlo."
@@ -52,7 +38,7 @@ class PersonasViewModel(
             try { action() }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                val campos = if (e is ApiException && e.status == 409 && mutable.value.modo == "nuevo") mapOf("dni" to "Este DNI ya está registrado.") else if (e is ApiException) e.campos else emptyMap()
+                val campos = if (e is ErrorRepositorio && e.tipo == TipoErrorRepositorio.DUPLICADO && mutable.value.modo == "nuevo") mapOf("dni" to "Este DNI ya está registrado.") else if (e is ErrorRepositorio) e.campos else emptyMap()
                 update { it.copy(error = error(e), aviso = Aviso("No se pudo completar", error(e)),
                     errores = campos.ifEmpty { it.errores },
                     tab = if (it.modo.isNotEmpty() && campos.isNotEmpty()) Validacion.seccion(campos.keys.first()) else it.tab) }
@@ -89,8 +75,8 @@ class PersonasViewModel(
         if (!puedeConectar()) return
         operation {
             try { val persona = repository.buscar(dni); update { it.copy(persona = persona, sinResultado = false) } }
-            catch (e: ApiException) {
-                if (e.status != 404) throw e
+            catch (e: ErrorRepositorio) {
+                if (e.tipo != TipoErrorRepositorio.NO_ENCONTRADO) throw e
                 update { it.copy(persona = null, sinResultado = true) }
             }
         }
@@ -149,7 +135,7 @@ class PersonasViewModel(
         val s = mutable.value
         if (Validacion.formulario(s.borrador).isNotEmpty()) { solicitarGuardar(); return }
         operation {
-            if (s.modo == "nuevo" && repository.existe(s.borrador.dni)) throw ApiException(409, "Este DNI ya está registrado, incluso si fue eliminado.", mapOf("dni" to "El DNI ya está registrado."))
+            if (s.modo == "nuevo" && repository.existe(s.borrador.dni)) throw ErrorRepositorio(TipoErrorRepositorio.DUPLICADO, "Este DNI ya está registrado, incluso si fue eliminado.", mapOf("dni" to "El DNI ya está registrado."))
             val persona = repository.guardar(s.borrador, s.modo == "editar")
             limpiarFoto()
             update { it.copy(persona = persona, busqueda = persona.dni, modo = "", borrador = Borrador(), errores = emptyMap(), sinResultado = false, mensaje = "Persona guardada correctamente.") }
@@ -187,7 +173,9 @@ class PersonasViewModel(
     }
     fun abrirDireccion() {
         if (mutable.value.ocupado) return
-        update { it.copy(direccionAbierta = true, direccionBorrador = it.borrador.direccion, erroresDireccion = emptyMap(), errorUbigeo = null) }
+        update { it.copy(direccionAbierta = true, direccionBorrador = it.borrador.direccion,
+            provincias = it.provincias.filter { p -> p.regionId == it.borrador.direccion.regionId },
+            distritos = it.distritos.filter { d -> d.provinciaId == it.borrador.direccion.provinciaId }, erroresDireccion = emptyMap(), errorUbigeo = null) }
         cargarUbicacion()
     }
     fun cerrarDireccion() {
@@ -223,18 +211,25 @@ class PersonasViewModel(
         update { it.copy(borrador = it.borrador.copy(direccion = d.copy(detalle = d.detalle.trim())), direccionAbierta = false, errores = it.errores - "direccion") }
     }
     fun cargarUbicacion() {
-        if (!mutable.value.direccionAbierta) return
+        val actual = mutable.value
+        if (!actual.direccionAbierta) return
         ubicacionJob?.cancel()
         val version = ++ubicacionVersion
+        val seleccion = actual.direccionBorrador
         update { it.copy(cargandoUbigeo = true, errorUbigeo = null) }
         ubicacionJob = viewModelScope.launch {
             try {
                 if (!puedeConectar(false)) throw IOException("Sin conexión")
-                val regiones = ubigeo.regiones()
-                val seleccion = mutable.value.direccionBorrador
-                val provincias = if (seleccion.regionId.isNotBlank()) ubigeo.provincias(seleccion.regionId) else emptyList()
-                val distritos = if (seleccion.provinciaId.isNotBlank()) ubigeo.distritos(seleccion.provinciaId) else emptyList()
-                if (version == ubicacionVersion) update { it.copy(regiones = regiones, provincias = provincias, distritos = distritos) }
+                val regiones = actual.regiones.ifEmpty { ubigeo.regiones() }
+                if (version != ubicacionVersion) return@launch
+                update { it.copy(regiones = regiones) }
+                val provincias = if (seleccion.regionId.isBlank()) emptyList() else
+                    actual.provincias.filter { it.regionId == seleccion.regionId }.ifEmpty { ubigeo.provincias(seleccion.regionId) }
+                if (version != ubicacionVersion) return@launch
+                update { it.copy(provincias = provincias) }
+                val distritos = if (seleccion.provinciaId.isBlank()) emptyList() else
+                    actual.distritos.filter { it.provinciaId == seleccion.provinciaId }.ifEmpty { ubigeo.distritos(seleccion.provinciaId) }
+                if (version == ubicacionVersion) update { it.copy(distritos = distritos) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (version == ubicacionVersion) update { it.copy(errorUbigeo = error(e)) } }
             finally { if (version == ubicacionVersion) update { it.copy(cargandoUbigeo = false) } }
@@ -242,12 +237,12 @@ class PersonasViewModel(
     }
     fun prepararCamara(): String? = try {
         val captura = fotos.prepararCaptura()
-        saved["captura"] = captura.ruta
+        saved.capturaPendiente = captura.ruta
         captura.uri
     } catch (e: Exception) { informar(error(e)); null }
     fun camaraTerminada(success: Boolean) {
-        val path = saved.get<String>("captura") ?: return
-        saved["captura"] = null
+        val path = saved.capturaPendiente ?: return
+        saved.capturaPendiente = null
         if (success) importarFoto(fotos.origenArchivo(path), path) else fotos.borrar(path)
     }
     fun importarFoto(uri: String, captura: String = "") {

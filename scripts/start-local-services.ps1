@@ -94,7 +94,7 @@ try {
         $candidate = Get-Process -Id $state.pid -ErrorAction SilentlyContinue
         if ($candidate -and $candidate.StartTime.ToUniversalTime().Ticks.ToString() -eq $state.startTicks -and $candidate.Path -ieq $java -and $state.instance -eq $instance) { $ownedProcess = $candidate }
     }
-    if (-not ($health -and $health.estado -eq 'ok' -and $health.version -eq $runtimeHash -and $state.hash -eq $runtimeHash)) {
+    if (-not ($health -and $health.disponible -eq $true -and $health.version -eq $runtimeHash -and $state.hash -eq $runtimeHash)) {
         if ($health -and -not $ownedProcess) { throw 'La API necesita actualizarse pero no se pudo verificar su proceso. No se detuvo ningun servicio.' }
         if ($ownedProcess) { $ownedProcess.Kill(); $ownedProcess.WaitForExit(15000) | Out-Null }
         $jar = Join-Path $backendRoot 'target\personas-api-1.0.0.jar'
@@ -123,7 +123,7 @@ try {
             $apiProcess.Refresh()
             if ($apiProcess.HasExited) { throw 'La API se detuvo. Revisa .local/api.log.' }
             $health = Health
-            if ($health -and $health.estado -eq 'ok' -and $health.instancia -eq $instance -and $health.version -eq $runtimeHash) { $ready = $true; break }
+            if ($health -and $health.disponible -eq $true -and $health.instancia -eq $instance -and $health.version -eq $runtimeHash) { $ready = $true; break }
             Start-Sleep -Milliseconds 750
         }
         if (-not $ready) { throw 'La API no confirmo su conexion con PostgreSQL. Revisa .local/api.log.' }

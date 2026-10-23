@@ -86,7 +86,7 @@ La consulta de registros eliminados utiliza el campo de estado:
 ```sql
 SELECT dni, nombres, apellidos, estado
 FROM personas.persona
-WHERE estado = 'INACTIVO';
+WHERE estado = false;
 ```
 
 La [documentación de conexión de pgAdmin](https://www.pgadmin.org/docs/pgadmin4/latest/server_dialog.html) describe los campos del registro de servidor.
@@ -163,7 +163,7 @@ Las rutas Kotlin siguientes son relativas a `app/src/main/java/com/example/perso
 | --- | --- |
 | `MainActivity.kt` | Punto de entrada visual. Configura las barras del sistema, obtiene el ViewModel de su fábrica y muestra la interfaz. |
 | `PersonasApplication.kt` | Mantiene el contenedor de dependencias durante la vida del proceso. |
-| `di/AppContainer.kt` | Construye las implementaciones de repositorios y la fábrica del ViewModel. La fábrica recibe el `SavedStateHandle` del ciclo de vida. |
+| `di/AppContainer.kt` | Construye las implementaciones de repositorios y la fábrica del ViewModel. La fábrica obtiene el `SavedStateHandle` del ciclo de vida y lo encapsula en `FormularioSavedState`. |
 | `domain/Persona.kt` | Modelo de la ficha de una persona. |
 | `domain/Direccion.kt` | Dirección estructurada y representación de vía más distrito. |
 | `domain/Region.kt`, `Provincia.kt`, `Distrito.kt` | Modelos del catálogo y relación de cada selección con su padre. |
@@ -174,17 +174,18 @@ Las rutas Kotlin siguientes son relativas a `app/src/main/java/com/example/perso
 | `domain/Validacion.kt` | Reglas de DNI, celular, correo y formulario; correspondencia entre campos y pestañas. |
 | `domain/PersonasRepository.kt` | Contrato de búsqueda, alta, actualización, eliminación y catálogo. |
 | `domain/FotosRepository.kt` | Contrato de preparación de captura, importación y limpieza de archivos temporales. |
+| `domain/ErrorRepositorio.kt`, `TipoErrorRepositorio.kt` | Errores de validación, recurso no encontrado, duplicado o servidor, con mensaje y campos inválidos. La presentación no interpreta códigos HTTP. |
 | `domain/ServidorUrl.kt` | Política de validación del origen HTTP/HTTPS. |
 | `data/HttpPersonasRepository.kt` | Implementación HTTP del contrato de personas: JSON, multipart y traducción de errores de la API. |
 | `data/ApiClient.kt` | Conexiones HTTP, tiempos de espera, codificación y traducción compartida de errores. |
 | `data/HttpUbigeoRepository.kt` | Consulta del catálogo de ubicación mediante la API. |
-| `data/ApiException.kt` | Error de respuesta con código HTTP, mensaje y campos inválidos. |
-| `data/PersonaJson.kt` | Conversión JSON de personas y borradores, incluida la serialización del estado guardado. |
+| `data/PersonaJson.kt` | Conversión de las respuestas JSON de personas y direcciones a modelos del dominio. |
 | `data/ApiConfig.kt` | Resolución automática del origen de la API o lectura del origen definido al compilar. |
 | `data/ArchivoFotosRepository.kt` | Implementación del contrato de fotos. Encapsula `Context`, `FileProvider`, URI e importación fuera del hilo principal. |
 | `data/FotoImporter.kt` | Validación de tamaño, orientación EXIF, conversión JPEG y limpieza de borradores privados. |
 | `data/FotoLoader.kt` | Lectura de imágenes locales o remotas, reducción de resolución y caché de bitmaps. |
-| `viewmodel/PersonasViewModel.kt` | Coordinación del formulario y operaciones mediante repositorios inyectados. Expone `StateFlow` y conserva datos en `SavedStateHandle`; no recibe `Application` ni `Context`. |
+| `viewmodel/PersonasViewModel.kt` | Coordinación del formulario y operaciones mediante repositorios inyectados. Expone `StateFlow`, delega la restauración del formulario y consume errores del dominio; no interpreta JSON ni códigos HTTP. |
+| `viewmodel/FormularioSavedState.kt` | Serialización y restauración del borrador, ficha, dirección pendiente y captura mediante `SavedStateHandle`, independiente del formato de transporte HTTP. |
 | `viewmodel/Pantalla.kt` | Estado de pantalla: ficha, borrador, pestaña, catálogo, errores, carga y confirmaciones. |
 | `viewmodel/Aviso.kt` | Título y mensaje de los avisos de validación. |
 | `ui/PersonasApp.kt` | Pantalla inicial, resultados, permiso de red y lanzadores de cámara y galería. |
@@ -224,7 +225,6 @@ Las rutas Java siguientes son relativas a `backend/src/main/java/com/example/per
 | `model/Direccion.java`, `Distrito.java`, `Provincia.java`, `Region.java` | Entidades de dirección y división territorial con sus relaciones JPA. |
 | `repository/DireccionRepository.java`, `DistritoRepository.java`, `ProvinciaRepository.java`, `RegionRepository.java` | Persistencia de direcciones y consultas del catálogo por su entidad padre. |
 | `dto/DireccionRequest.java`, `DireccionResponse.java`, `UbigeoResponse.java` | Contratos de dirección estructurada y elementos del catálogo. |
-| `model/EstadoPersona.java` | Estados `ACTIVO` e `INACTIVO`. |
 
 En `backend/src/main/resources`, `application.properties` define conexión, puerto, inicialización SQL y límites multipart. La carpeta `db` contiene:
 
@@ -232,7 +232,7 @@ En `backend/src/main/resources`, `application.properties` define conexión, puer
 | --- | --- |
 | `schema.sql` | Tablas, claves, índice y restricciones. |
 | `data.sql` | Catálogo inicial sin duplicación en arranques posteriores. |
-| `migrate-estado.sql` | Conversión del indicador antiguo al campo `estado`, conservando activos e inactivos. |
+| `migrate-estado.sql` | Conversión de indicadores anteriores a `estado BOOLEAN`, conservando activos e inactivos. Su ejecución repetida no reactiva registros; un valor anterior desconocido detiene la conversión sin modificar los datos. |
 | `ubigeo.sql` | Catálogo territorial con identificadores UBIGEO, sin duplicación en arranques posteriores. |
 | `migrate-direccion.sql` | Conversión de direcciones anteriores a claves foráneas, conservando personas y estados. |
 | `migrate-foto-ruta.sql` | Restricción de rutas de fotografía y correspondencia entre carpeta y DNI. |
@@ -277,7 +277,7 @@ flowchart LR
     VM -->|StateFlow| UI
 ```
 
-`AppContainer` construye las implementaciones y las proporciona al ViewModel mediante una fábrica. El ViewModel utiliza los contratos de repositorio y administra el estado de pantalla. Las dependencias de Android necesarias para archivos y URI permanecen en la implementación de fotografías.
+`AppContainer` construye las implementaciones y las proporciona al ViewModel mediante una fábrica. El ViewModel utiliza las interfaces de repositorio del dominio y administra el estado de pantalla. Los repositorios traducen el transporte HTTP a modelos y errores del dominio. `FormularioSavedState` conserva los datos de presentación sin depender de los convertidores JSON de la API. Las dependencias de Android necesarias para archivos y URI permanecen en la implementación de fotografías.
 
 Durante un alta, Compose actualiza el borrador; el ViewModel valida y solicita confirmación. El repositorio HTTP envía los datos JSON y la foto multipart. El Controller valida la entrada y delega al Service, que comprueba el DNI y la profesión y persiste la entidad dentro de una transacción. La respuesta actualiza el `StateFlow` y la ficha visible.
 
@@ -304,15 +304,19 @@ El esquema `personas` contiene `persona`, `profesion`, `direccion`, `distrito`, 
 | `persona.celular` | `VARCHAR(9)`, nueve dígitos con inicio en 9. |
 | `persona.correo` | `VARCHAR(180)`, obligatorio y con formato de correo. |
 | `persona.foto_ruta` | `VARCHAR(80)`, ruta relativa de la fotografía. La carpeta, cuando está presente, debe coincidir con el DNI. |
-| `persona.estado` | `VARCHAR(8) NOT NULL DEFAULT 'ACTIVO'`, limitado a `ACTIVO` o `INACTIVO`. |
+| `persona.estado` | `BOOLEAN NOT NULL DEFAULT TRUE`: `true` para activo y `false` para eliminado lógicamente. |
 
-La eliminación cambia el estado a `INACTIVO` y conserva la persona, su dirección y su fotografía. Las búsquedas, ediciones y descargas de foto excluyen los registros inactivos. El DNI permanece reservado; la clave primaria protege también frente a altas simultáneas.
+El indicador de estado se representa siempre como booleano, sin valores nulos: `true` o `false`. La eliminación cambia `estado` a `false` y conserva la persona, su dirección y su fotografía. Las búsquedas, ediciones y descargas de foto excluyen los registros inactivos. El DNI permanece reservado; la clave primaria protege también frente a altas simultáneas.
 
 Las validaciones de Android proporcionan avisos inmediatos. La API valida cualquier solicitud y PostgreSQL aplica restricciones de integridad. Hibernate utiliza `ddl-auto=validate`; los archivos SQL controlan el esquema.
 
 ## Registro de dirección
 
-El campo **Dirección** abre una modal con **Región**, **Provincia**, **Distrito** y **Vía y número**. La provincia se habilita después de seleccionar una región; el distrito se habilita después de seleccionar una provincia. Cambiar una selección elimina sus selecciones dependientes. **Cancelar** conserva la dirección anterior; **Aceptar** valida los campos y actualiza la ficha.
+El campo **Dirección** abre una modal con **Región**, **Provincia**, **Distrito** y **Vía y número**.
+
+Al abrir una dirección nueva solo se consulta el catálogo de regiones. Seleccionar una región consulta sus provincias; seleccionar una provincia consulta sus distritos. Los controles dependientes permanecen deshabilitados hasta seleccionar su nivel superior y completar la carga correspondiente. **Vía y número** se habilita al seleccionar el distrito. Cambiar una selección elimina sus selecciones y catálogos dependientes.
+
+Los catálogos ya disponibles se reutilizan durante el formulario; un reintento consulta únicamente los niveles pendientes. Una dirección existente recupera los niveles de su selección en orden jerárquico. **Cancelar** conserva la dirección anterior; **Aceptar** valida los campos y actualiza la ficha.
 
 Una vía `Av. Sánchez Cerro 26` asociada al distrito `Piura` se muestra como `Av. Sánchez Cerro 26, Piura`. La concatenación se utiliza para presentación. La solicitud envía `direccion.detalle` y `direccion.distritoId`; el servidor obtiene provincia y región a través de las claves foráneas. La persona guarda únicamente `direccion_id`.
 
@@ -358,7 +362,7 @@ En un teléfono, la captura abre su cámara instalada. En el emulador, la imagen
 
 | Método | Ruta | Operación |
 | --- | --- | --- |
-| GET | `/api/health` | Disponibilidad de API/PostgreSQL, instancia y versión. |
+| GET | `/api/health` | Disponibilidad de API/PostgreSQL (`disponible: true`), instancia y versión. |
 | GET | `/api/ubigeo/regiones` | Regiones del catálogo. |
 | GET | `/api/ubigeo/regiones/{id}/provincias` | Provincias de la región seleccionada. |
 | GET | `/api/ubigeo/provincias/{id}/distritos` | Distritos de la provincia seleccionada. |
