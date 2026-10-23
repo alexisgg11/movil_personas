@@ -1,0 +1,17 @@
+{
+  "com.example.personas.ExampleUnitTest": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 0
+  },
+  "com.example.personas.PersonasViewModelTest": {
+    "tests": 7,
+    "failures": 0,
+    "errors": 0
+  },
+  "com.example.personas.ValidacionTest": {
+    "tests": 8,
+    "failures": 0,
+    "errors": 0
+  }
+}

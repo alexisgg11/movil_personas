@@ -1,39 +1,22 @@
 package com.example.personas.viewmodel
 
-import android.app.Application
-import android.net.Uri
-import androidx.core.content.FileProvider
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.example.personas.BuildConfig
 import com.example.personas.data.*
 import com.example.personas.domain.*
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.File
 import java.io.IOException
 
-data class Aviso(val titulo: String, val mensaje: String)
-
-data class Pantalla(
-    val busqueda: String = "", val persona: Persona? = null, val modo: String = "",
-    val borrador: Borrador = Borrador(), val profesiones: List<Profesion> = emptyList(),
-    val tab: Int = 0, val ocupado: Boolean = false, val cargandoCatalogo: Boolean = false,
-    val error: String? = null, val errores: Map<String, String> = emptyMap(),
-    val mensaje: String? = null, val confirmacion: String = "",
-    val nuevaProfesion: Boolean = false, val nombreProfesion: String = "", val errorProfesion: String? = null,
-    val redPermitida: Boolean = false,
-    val aviso: Aviso? = null, val sinResultado: Boolean = false
-)
-
-class PersonasViewModel(app: Application, private val saved: SavedStateHandle) : AndroidViewModel(app) {
-    private val repository = PersonasRepository()
+class PersonasViewModel(
+    private val repository: PersonasRepository,
+    private val fotos: FotosRepository,
+    private val saved: SavedStateHandle
+) : ViewModel() {
     private var catalogVersion = 0
     private val mutable = MutableStateFlow(Pantalla(
         busqueda = saved["busqueda"] ?: "",
@@ -77,7 +60,7 @@ class PersonasViewModel(app: Application, private val saved: SavedStateHandle) :
     }
     private fun puedeConectar(mostrarAviso: Boolean = true): Boolean {
         if (!mutable.value.redPermitida) { update { it.copy(error = "Permite el acceso a la red local para continuar.", aviso = if (mostrarAviso) Aviso("Conexión", "Permite el acceso a la red local para continuar.") else it.aviso) }; return false }
-        val validation = ApiConfig.error()
+        val validation = repository.errorConfiguracion()
         if (validation != null) { update { it.copy(error = validation, aviso = if (mostrarAviso) Aviso("Conexión", validation) else it.aviso) }; return false }
         return true
     }
@@ -177,7 +160,7 @@ class PersonasViewModel(app: Application, private val saved: SavedStateHandle) :
         limpiarFoto()
         update { it.copy(modo = "", borrador = Borrador(), confirmacion = "", errores = emptyMap(), error = null, aviso = null) }
     }
-    private fun limpiarFoto() { FotoImporter.borrar(getApplication(), mutable.value.borrador.fotoLocal) }
+    private fun limpiarFoto() { fotos.borrar(mutable.value.borrador.fotoLocal) }
     fun abrirProfesion() { update { it.copy(nuevaProfesion = true, nombreProfesion = "", errorProfesion = null) } }
     fun cerrarProfesion() { if (!mutable.value.ocupado) update { it.copy(nuevaProfesion = false) } }
     fun nombreProfesion(value: String) { update { it.copy(nombreProfesion = value.take(80), errorProfesion = null) } }
@@ -195,23 +178,23 @@ class PersonasViewModel(app: Application, private val saved: SavedStateHandle) :
             finally { update { it.copy(ocupado = false) } }
         }
     }
-    fun prepararCamara(): Uri? = try {
-        val file = FotoImporter.nuevaCaptura(getApplication())
-        saved["captura"] = file.absolutePath
-        FileProvider.getUriForFile(getApplication(), "${BuildConfig.APPLICATION_ID}.files", file)
+    fun prepararCamara(): String? = try {
+        val captura = fotos.prepararCaptura()
+        saved["captura"] = captura.ruta
+        captura.uri
     } catch (e: Exception) { informar(error(e)); null }
     fun camaraTerminada(success: Boolean) {
         val path = saved.get<String>("captura") ?: return
         saved["captura"] = null
-        if (success) importarFoto(Uri.fromFile(File(path)), path) else FotoImporter.borrar(getApplication(), path)
+        if (success) importarFoto(fotos.origenArchivo(path), path) else fotos.borrar(path)
     }
-    fun importarFoto(uri: Uri, captura: String = "") {
+    fun importarFoto(uri: String, captura: String = "") {
         operation {
             try {
-                val path = withContext(Dispatchers.IO) { FotoImporter.importar(getApplication(), uri) }
+                val path = fotos.importar(uri)
                 limpiarFoto()
                 update { it.copy(borrador = it.borrador.copy(fotoLocal = path), errores = it.errores - "foto") }
-            } finally { FotoImporter.borrar(getApplication(), captura) }
+            } finally { fotos.borrar(captura) }
         }
     }
     fun informar(texto: String) { update { it.copy(error = texto, aviso = Aviso("Aviso", texto)) } }

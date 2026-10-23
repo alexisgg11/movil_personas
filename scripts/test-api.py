@@ -116,6 +116,9 @@ try:
     check('invalid image', 400, request('POST', '/api/personas', person, b'not an image', True))
     created_person = check('create with leading zero and photo', 201, request('POST', '/api/personas', person, image(100), True))
     assert created_person['dni'] == '01234567'
+    photo_path = sql(DATABASE, "SELECT foto_ruta FROM personas.persona WHERE dni='01234567'")
+    assert photo_path.startswith('01234567/') and (WORK / 'photos' / photo_path).is_file()
+    checks.append('photo stored in the DNI directory with relative path in PostgreSQL')
     check('duplicate DNI', 409, request('POST', '/api/personas', person, image(200), True))
     found = check('search only by DNI', 200, request('GET', '/api/personas/01234567'))
     original_photo = check('download photo', 200, request('GET', found['fotoUrl']))
@@ -126,7 +129,7 @@ try:
     new_photo = check('download replaced photo', 200, request('GET', replaced['fotoUrl']))
     assert new_photo != original_photo
     photos = WORK / 'photos'
-    assert len(list(photos.glob('*.jpg'))) == 1, 'Replaced/failed photographs were not cleaned'
+    assert len(list(photos.rglob('*.jpg'))) == 1, 'Replaced/failed photographs were not cleaned'
     check('DNI immutable', 400, request('PUT', '/api/personas/01234567', person | {'dni': '01234568'}, multipart=True))
     check('no full person listing', 405, request('GET', '/api/personas'))
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -135,7 +138,7 @@ try:
     winner = next(json.loads(body) for code, body in results if code == 201)
     actual = check('concurrent duplicate does not overwrite', 200, request('GET', '/api/personas/02345678'))
     assert winner['nombres'] == actual['nombres']
-    assert len(list(photos.glob('*.jpg'))) == 2, 'Rollback left an orphan photograph'
+    assert len(list(photos.rglob('*.jpg'))) == 2, 'Rollback left an orphan photograph'
     check('logical delete', 204, request('DELETE', '/api/personas/01234567'))
     check('deleted person hidden', 404, request('GET', '/api/personas/01234567'))
     check('deleted photo hidden', 404, request('GET', '/api/personas/01234567/foto'))
@@ -146,6 +149,7 @@ try:
     assert sql(DATABASE, "SELECT data_type FROM information_schema.columns WHERE table_schema='personas' AND table_name='persona' AND column_name='dni'") == 'character varying'
     assert sql(DATABASE, "SELECT count(*) FROM information_schema.columns WHERE table_schema='personas' AND table_name='persona' AND column_name='id'") == '0'
     for label, statement in [
+        ('database rejects another persons photo directory', "UPDATE personas.persona SET foto_ruta='02345678/00000000-0000-0000-0000-000000000001.jpg' WHERE dni='01234567'"),
         ('database rejects invalid state', "UPDATE personas.persona SET estado='BORRADO' WHERE dni='01234567'"),
         ('database rejects cellphone not starting with 9', "UPDATE personas.persona SET celular='887654321' WHERE dni='01234567'"),
         ('database rejects unknown profession FK', "UPDATE personas.persona SET profesion_id=999999 WHERE dni='01234567'"),

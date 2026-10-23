@@ -38,13 +38,11 @@ El resultado estructurado está en [pruebas-emulador.json](docs/pruebas-emulador
 
 ## Comprobaciones automáticas
 
-- **29 comprobaciones HTTP/SQL correctas**, ejecutadas con PostgreSQL en otra base desechable. Incluyen migración de la columna antigua, repetición del arranque sin reactivar filas, DNI con cero inicial, duplicados simultáneos, celular, profesión inexistente, imágenes inválidas, sustitución y limpieza de fotos, eliminación lógica y restricciones SQL de estado y clave foránea. [Resultados](docs/pruebas-api.json).
+- **31 comprobaciones HTTP/SQL correctas**, ejecutadas con PostgreSQL en otra base desechable. Incluyen migración de la columna antigua, repetición del arranque sin reactivar filas, DNI con cero inicial, duplicados simultáneos, celular, profesión inexistente, imágenes inválidas, sustitución y limpieza de fotos, eliminación lógica y restricciones SQL de estado y clave foránea. [Resultados](docs/pruebas-api.json).
 - **6 pruebas instrumentales correctas** en Android: recorrido de pestañas, validación, ausencia del ajuste de IP, ficha en vivo, conservación del texto y foco usando Siguiente del teclado, iconos accesibles y etiquetas al 200 %. [Salida](docs/instrumentacion.txt).
-- **9 pruebas JVM Android y 5 pruebas del backend correctas**.
+- **16 pruebas JVM Android y 8 pruebas del backend correctas**.
 - Compilación debug y release correctas. El APK release compilado es unsigned y necesita configurar una API HTTPS para un despliegue fuera del entorno local.
-- Lint debug: cero errores y diez avisos de metadatos, estilo y dependencias.
-
-La primera ejecución de la prueba de teclado detectó un fallo de sincronización al pulsar un campo mientras cambiaba el área visible del teclado. Se reprodujo por separado y se estabilizó el recorrido usando las acciones Siguiente del teclado, comprobando el foco y los valores completos. La suite completa terminó con `OK (6 tests)`.
+- Lint debug: cero errores y dieciséis avisos de metadatos, estilo y dependencias.
 
 ## Arranque automático y estado final
 
@@ -53,3 +51,17 @@ La configuración Run ejecuta `:app:startLocalServices`, y `preDebugBuild` tambi
 En la compilación final se ejecutó `:app:installDebug` sin `PERSONAS_API_URL` de prueba: PostgreSQL quedó aceptando conexiones en 55440 y `/api/health` confirmó `estado: ok` y `baseDatos: PostgreSQL` en 8081. La app se abrió y cargó las profesiones habituales. No quedó apuntando al puerto temporal de verificación. No se detectaron errores AndroidRuntime del proceso durante el recorrido.
 
 Las credenciales, el cluster, archivos de fotos de usuarios y logs locales permanecen excluidos de Git. Las capturas publicadas corresponden únicamente a datos de prueba.
+
+
+## Modelos, dependencias y carpetas de fotografías
+
+La organización utiliza modelos separados y contratos `PersonasRepository` y `FotosRepository`. `AppContainer` proporciona las implementaciones mediante una fábrica con `SavedStateHandle`. El ViewModel utiliza `ViewModel` y no depende de `Application`, `Context`, `Uri` ni `FileProvider`.
+
+- JVM Android: 16 casos correctos, incluidos siete del ViewModel con repositorios sustitutos. [Resultados](docs/pruebas-unitarias.json).
+- Backend: ocho casos correctos de validación y almacenamiento, incluidos rollback, lectura de rutas antiguas y protección de directorios.
+- API/PostgreSQL: 31 comprobaciones correctas. La ruta contiene el DNI y la restricción SQL impide asignar la carpeta de otra persona.
+- Android: seis pruebas instrumentales correctas.
+- Recorrido desde el emulador: alta, búsqueda, edición, galería, duplicados y eliminación lógica con las dependencias inyectadas. La carpeta del DNI y el archivo permanecen después de cambiar el estado a INACTIVO.
+- Recuperación: cierre intencionado del proceso mientras la cámara está abierta; tras confirmar la foto, la aplicación recupera nombre, DNI, profesión y captura. [Captura restaurada](docs/capturas/camara-restaurada.png).
+
+La foto de la ejecución utiliza una ruta relativa dentro de `00601024/`. El resultado estructurado contiene el nombre del archivo en [pruebas-emulador.json](docs/pruebas-emulador.json). Las fotografías y la base del recorrido son temporales; los datos habituales permanecen separados.

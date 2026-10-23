@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS personas.persona (
     profesion_id BIGINT NOT NULL REFERENCES personas.profesion(id) ON DELETE RESTRICT,
     celular VARCHAR(9) NOT NULL CHECK (celular ~ '^9[0-9]{8}$'),
     correo VARCHAR(180) NOT NULL CHECK (correo ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'),
-    foto_ruta VARCHAR(80) NOT NULL CHECK (foto_ruta ~ '^[0-9a-f-]{36}[.]jpg$'),
+    foto_ruta VARCHAR(80) NOT NULL,
+    CONSTRAINT ck_persona_foto_ruta CHECK (foto_ruta ~ '^([0-9]{8}/)?[0-9a-f-]{36}[.]jpg$'
+        AND (foto_ruta NOT LIKE '%/%' OR split_part(foto_ruta, '/', 1) = dni)),
     estado VARCHAR(8) NOT NULL DEFAULT 'ACTIVO',
     CONSTRAINT ck_persona_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'))
 );

@@ -1,61 +1,102 @@
 # Personas
 
-Aplicación del Trabajo N.º 3 de Tecnología y Desarrollo Móvil. Permite registrar una persona con fotografía, buscarla por DNI, consultar su ficha, actualizar sus datos o foto y eliminarla de forma lógica.
+Personas es una aplicación Android para registrar personas con fotografía, consultar sus datos por DNI, actualizar la ficha y realizar eliminaciones lógicas. La interfaz utiliza Kotlin y Jetpack Compose; una API Spring Boot administra las operaciones y la persistencia en PostgreSQL.
 
-La interfaz está hecha con **Kotlin y Jetpack Compose**. Se conservan Kotlin 2.2.10, Compose BOM 2026.02.01 y Android Gradle Plugin 9.4.1; Android mínimo 24 y objetivo 37. Android se comunica por HTTP/JSON con una **API Spring Boot en Java**, y la API guarda los datos en **PostgreSQL**. El teléfono no se conecta directamente a PostgreSQL.
+## Componentes
 
-## Abrir y ejecutar
+| Componente | Tecnología |
+| --- | --- |
+| Aplicación Android | Kotlin 2.2.10, Jetpack Compose BOM 2026.02.01 y Material 3 |
+| Arquitectura Android | MVVM, repositorios, StateFlow, SavedStateHandle e inyección manual por constructor |
+| Configuración Android | Android mínimo 24, objetivo 37, Android Gradle Plugin 9.4.1 y Gradle 9.6 |
+| API | Java 25, Spring Boot 4.1.1, Spring MVC, JPA y Bean Validation |
+| Base de datos | PostgreSQL 18 |
+| Fotografías | Captura mediante la cámara del sistema, selector de fotos de Android y archivos JPEG en el servidor |
 
-El arranque automático está preparado para **Windows**. Se necesitan Android Studio con SDK 37, un emulador o teléfono USB autorizado, JDK 25, PostgreSQL 18 y Maven 3.9.16 instalados. La primera sincronización necesita Internet para descargar dependencias.
+## Ejecución local
 
-1. Clonar o descargar el repositorio y abrir su carpeta raíz en Android Studio, donde está `settings.gradle.kts`.
-2. Esperar la sincronización y comprobar que Android Studio reconoce el SDK. `local.properties` se genera en cada equipo; no se comparte por Git.
-3. Seleccionar la configuración **app** y un emulador o teléfono conectado por USB.
-4. Pulsar **Run**. El proyecto prepara PostgreSQL y la API, comprueba su disponibilidad, compila e instala Android. No hay que ejecutar comandos adicionales en cada arranque.
-5. En Android 17, permitir el acceso a la red local cuando se solicite.
+El entorno de desarrollo requiere Windows, Android Studio con SDK 37, JDK 25, PostgreSQL 18, Maven 3.9.16 y un emulador o teléfono USB autorizado. La sincronización inicial descarga las dependencias de Android y de la API.
 
-La configuración `.run/app.run.xml` ejecuta `:app:startLocalServices` antes de la instalación. Además, `preDebugBuild` depende de esa tarea, por lo que también se ejecuta al construir la versión debug desde Gradle.
+1. La carpeta raíz, que contiene `settings.gradle.kts`, se abre en Android Studio.
+2. La sincronización configura el módulo `app` y la ubicación local del SDK.
+3. Se seleccionan la configuración **app** y el dispositivo de destino.
+4. **Run** ejecuta el arranque de PostgreSQL y de la API antes de compilar e instalar Android.
+5. En Android 17, la aplicación solicita permiso de acceso a la red local para comunicarse con la API.
 
-### Preparación de herramientas en otro equipo
+El arranque está integrado mediante `.run/app.run.xml` y la dependencia de `preDebugBuild` respecto a `:app:startLocalServices`. El uso habitual no requiere ejecutar comandos adicionales.
 
-Estas son las rutas predeterminadas del equipo de desarrollo. Si las herramientas están en otra ubicación, definir las variables indicadas antes de abrir Android Studio; después de cambiarlas, reiniciar el IDE para que las reciba.
+### Herramientas y rutas
 
 | Herramienta | Ruta predeterminada | Variable alternativa |
 | --- | --- | --- |
-| PostgreSQL 18 | `C:\Program Files\PostgreSQL\18\bin` | `PERSONAS_PG_BIN`, carpeta que contiene `pg_ctl.exe`, `initdb.exe` y `psql.exe` |
-| JDK 25 para la API | `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot` | `PERSONAS_JAVA_HOME`, raíz del JDK |
-| Maven 3.9.16 | `%USERPROFILE%\.maven\maven-3.9.16` | `PERSONAS_MAVEN_HOME`, raíz de esta versión de Maven |
-| Android SDK | Configuración de Android Studio / `local.properties` | `ANDROID_HOME` o `ANDROID_SDK_ROOT` también sirven para el script |
+| PostgreSQL 18 | `C:\Program Files\PostgreSQL\18\bin` | `PERSONAS_PG_BIN`: carpeta que contiene `pg_ctl.exe`, `initdb.exe` y `psql.exe` |
+| JDK 25 para la API | `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot` | `PERSONAS_JAVA_HOME`: raíz del JDK |
+| Maven 3.9.16 | `%USERPROFILE%\.maven\maven-3.9.16` | `PERSONAS_MAVEN_HOME`: raíz de Maven |
+| Android SDK | Ubicación de Android Studio en `local.properties` | `ANDROID_HOME` o `ANDROID_SDK_ROOT` |
 
-No hace falta crear a mano la base, el usuario ni las tablas del proyecto. El script utiliza los ejecutables de PostgreSQL para crear un **cluster privado**, separado del servicio PostgreSQL de otras aplicaciones.
+Las variables alternativas permiten utilizar otras ubicaciones de instalación. Android Studio recibe esas variables al iniciarse. `local.properties` pertenece a cada equipo y queda excluido de Git.
 
-### Qué inicia Run
+### Servicios y datos locales
 
-- PostgreSQL privado en `.local/postgres`, puerto **55440**, usuario `personas`, base `personas_app`.
-- Credenciales aleatorias en `backend/.env`, generado la primera vez. El APK no incluye la contraseña.
-- API en el puerto **8081**, con `/api/health` comprobando una consulta real a PostgreSQL.
-- Compilación de la API cuando cambian sus fuentes. Se reutiliza una API propia que ya está actualizada; antes de sustituir un proceso se comprueban su instancia, PID, fecha de inicio y ejecutable.
-- Conexión USB mediante `adb reverse`. En el emulador la app usa automáticamente `10.0.2.2`; en el teléfono USB usa `127.0.0.1`. **La interfaz no pide introducir una IP**.
+El primer arranque crea un cluster PostgreSQL privado en `.local/postgres`, con puerto **55440**, usuario **personas** y base **personas_app**. La contraseña se genera aleatoriamente y se guarda en `backend/.env`. El esquema, las tablas y el catálogo inicial se crean automáticamente.
 
-La base y la API siguen encendidas después de cerrar la app Android. Run puede reutilizarlas. No borrar `.local` ni `backend/.env` si se quieren conservar los datos y la contraseña asociada. Los logs de los servicios están en `.local/api.log` y `.local/postgres.log`.
+La API escucha en el puerto **8081**. El arranque comprueba `/api/health`, que realiza una consulta a PostgreSQL. Los cambios de fuentes de la API provocan su compilación y reinicio; una instancia propia actualizada se reutiliza. La sustitución de un proceso requiere verificar su instancia, PID, fecha de inicio y ejecutable.
 
-`jdk.net.unixdomain.tmpdir` está configurado en el wrapper de Windows, la JVM de Gradle y sus pruebas para evitar el error de conexión local de Java 25 detectado en este equipo, sin cambiar TEMP ni TMP globalmente.
+La conexión Android se resuelve automáticamente: el emulador utiliza `10.0.2.2:8081` y el teléfono USB utiliza `127.0.0.1:8081` mediante `adb reverse`. El emulador accede directamente al host. La interfaz no contiene una configuración de IP.
 
-## Cómo se usa
+PostgreSQL y la API permanecen activos después de cerrar Android. Sus logs se encuentran en `.local/postgres.log` y `.local/api.log`. La conservación de `.local` y `backend/.env` mantiene los datos y sus credenciales. El wrapper de Windows utiliza `.gradle/tmp` como directorio temporal de su ejecución y configura los sockets locales mediante `jdk.net.unixdomain.tmpdir`.
 
-La pantalla inicial contiene **Buscar por DNI** y **Nuevo**. Al buscar un DNI existente se muestra una ficha resumida con iconos para ver, editar y eliminar. Al tocar la ficha se abre la consulta completa.
+## Consulta de PostgreSQL con pgAdmin
 
-**Nuevo** abre una modal vacía, independiente del registro consultado. El formulario tiene tres pestañas:
+La conexión se registra en **Servers → Register → Server**. La pestaña **General** admite el nombre `Personas local`; la pestaña **Connection** utiliza estos valores:
+
+| Campo | Valor |
+| --- | --- |
+| Host name/address | `127.0.0.1` |
+| Port | `55440` |
+| Maintenance database | `personas_app` |
+| Username | `personas` |
+| Password | Valor de `DB_PASSWORD` del archivo local `backend/.env` |
+
+La conexión requiere que los servicios del proyecto estén activos. El archivo `.env` contiene una contraseña específica de cada instalación y queda excluido del repositorio.
+
+La tabla se encuentra en **Personas local → Databases → personas_app → Schemas → personas → Tables → persona**. La opción **View/Edit Data → All Rows** muestra las filas activas e inactivas. La tabla `profesion` contiene el catálogo relacionado.
+
+El **Query Tool** permite consultar la ficha y su profesión:
+
+```sql
+SELECT p.dni, p.nombres, p.apellidos, pr.nombre AS profesion,
+       p.direccion, p.celular, p.correo, p.foto_ruta, p.estado
+FROM personas.persona AS p
+JOIN personas.profesion AS pr ON pr.id = p.profesion_id
+ORDER BY p.apellidos, p.nombres;
+```
+
+La consulta de registros eliminados utiliza el campo de estado:
+
+```sql
+SELECT dni, nombres, apellidos, estado
+FROM personas.persona
+WHERE estado = 'INACTIVO';
+```
+
+La [documentación de conexión de pgAdmin](https://www.pgadmin.org/docs/pgadmin4/latest/server_dialog.html) describe los campos del registro de servidor.
+
+## Flujo de la aplicación
+
+La pantalla inicial contiene **Buscar por DNI** y **Nuevo**. Una búsqueda válida devuelve una ficha resumida con iconos para consultar, editar y eliminar. La selección del resumen abre la ficha completa.
+
+**Nuevo** presenta un borrador vacío. El formulario se distribuye en tres pestañas:
 
 | Pestaña | Contenido |
 | --- | --- |
-| Datos | DNI, nombres, apellidos y profesión. El catálogo permite **Añadir profesión…** y selecciona la profesión recién creada. |
-| Contacto | Dirección, celular y correo. La ficha superior se actualiza mientras se escribe y separa los datos con barras verticales. |
-| Foto | **Tomar foto** con la cámara del sistema o **Adjuntar foto** desde el selector de Android. Si ya hay una foto, aparecen **Volver a tomar** y **Reemplazar foto**. |
+| Datos | DNI, nombres, apellidos y profesión. El catálogo incluye **Añadir profesión…**, que registra y selecciona una profesión nueva. |
+| Contacto | Dirección, celular y correo electrónico. La ficha superior refleja los cambios y separa el contacto con barras verticales. |
+| Foto | **Tomar foto** y **Adjuntar foto**. Cuando existe una imagen, las acciones cambian a **Volver a tomar** y **Reemplazar foto**. |
 
-**Siguiente** valida la sección actual. **Guardar** valida todo y pide confirmación antes de enviar los datos. En edición, el DNI queda bloqueado y la foto anterior se conserva si no se elige otra. Cerrar un formulario modificado pide confirmar que se descartan los cambios. La eliminación también requiere confirmación.
+**Siguiente** valida la sección actual. **Guardar** valida el formulario completo y presenta una confirmación. Durante la edición, el DNI permanece bloqueado y la fotografía anterior se conserva hasta seleccionar un reemplazo. El cierre de un formulario modificado y la eliminación requieren confirmación.
 
-La modal ajusta su distribución a pantallas pequeñas, mantiene las acciones al pie y permite desplazar los campos cuando aparece el teclado o se amplía el texto.
+La modal adapta su distribución a la pantalla. El cuerpo admite desplazamiento cuando aparece el teclado o se amplía el texto; las acciones permanecen al pie. El borrador y la captura pendiente se restauran mediante `SavedStateHandle` al recrearse la actividad.
 
 ## Estructura del repositorio
 
@@ -68,16 +109,20 @@ Personas/
 │       │   ├── AndroidManifest.xml
 │       │   ├── java/com/example/personas/
 │       │   │   ├── MainActivity.kt
+│       │   │   ├── PersonasApplication.kt
+│       │   │   ├── di/
 │       │   │   ├── domain/
 │       │   │   ├── data/
 │       │   │   ├── viewmodel/
-│       │   │   └── ui/theme/
+│       │   │   └── ui/
+│       │   │       └── theme/
 │       │   └── res/
 │       ├── debug/AndroidManifest.xml
 │       ├── test/java/com/example/personas/
 │       └── androidTest/java/com/example/personas/
 ├── backend/
 │   ├── pom.xml
+│   ├── .env.example
 │   └── src/
 │       ├── main/java/com/example/personas/
 │       │   ├── App.java
@@ -91,177 +136,181 @@ Personas/
 ├── scripts/
 ├── gradle/
 ├── .run/app.run.xml
-├── docs/capturas/
+├── docs/
 ├── build.gradle.kts
 ├── settings.gradle.kts
 ├── gradle.properties
 ├── gradlew / gradlew.bat
-├── QA_EMULADOR.md
 └── README.md
 ```
 
-### Android: responsabilidad de cada carpeta y archivo
+### Android
 
-Las rutas de Kotlin de esta tabla son relativas a `app/src/main/java/com/example/personas/`.
+Las rutas Kotlin siguientes son relativas a `app/src/main/java/com/example/personas/`.
 
-| Ubicación | Responsabilidad |
+| Archivo o carpeta | Responsabilidad |
 | --- | --- |
-| `MainActivity.kt` | Punto de entrada Android. Prepara las barras del sistema, aplica el tema y muestra `PersonasApp`. |
-| `domain/Persona.kt` | Modelos `Persona`, `Profesion` y `Borrador`; reglas de validación y correspondencia entre campos y pestañas. No contiene HTTP ni componentes visuales. |
-| `domain/ServidorUrl.kt` | Política de validación del origen HTTP/HTTPS usado internamente. No crea una pantalla de configuración. |
-| `data/ApiConfig.kt` | Resuelve el servidor automáticamente para emulador o USB, o toma el origen definido al compilar. |
-| `data/PersonasRepository.kt` | Operaciones HTTP de personas y profesiones, JSON, envío multipart y conversión de respuestas o errores. Trabaja fuera del hilo principal. |
-| `data/FotoImporter.kt` | Crea capturas temporales, importa la imagen seleccionada, limita su tamaño, corrige la orientación EXIF, genera JPEG y limpia el borrador. |
-| `data/FotoLoader.kt` | Lee fotos locales o remotas, reduce su tamaño para visualización y mantiene la caché de bitmaps. La UI no abre conexiones HTTP. |
-| `viewmodel/PersonasViewModel.kt` | Estado `Pantalla`, operaciones de búsqueda/alta/edición/eliminación, navegación del formulario y diálogos. Expone `StateFlow`; `SavedStateHandle` conserva el borrador y la captura pendiente al recrearse la actividad. |
-| `ui/PersonasApp.kt` | Pantalla inicial, resultados, permiso de red local y lanzadores de cámara y selector de fotos. |
-| `ui/FichaModal.kt` | Contenedor de la ficha, título, cierre, desplazamiento y botones del pie. |
-| `ui/EditorPersona.kt` | Campos de Datos/Contacto/Foto, pestañas, catálogo y botones de fotografía. |
-| `ui/FichaPersona.kt` | Resultado resumido, ficha en vivo y contenido de consulta. |
-| `ui/FotoPersona.kt` | Presentación de la foto, iniciales o marcador vacío. Solicita la imagen a `FotoLoader`. |
-| `ui/DialogosPersona.kt` | Confirmaciones, avisos de validación y alta de profesiones. |
-| `ui/Campos.kt`, `Botones.kt`, `AppIcon.kt` | Controles reutilizables, entradas, botones e iconos con etiquetas accesibles. |
-| `ui/theme/Theme.kt`, `Type.kt` | Tema claro blanco/gris, azul de botones y pestañas, y tipografía. |
+| `MainActivity.kt` | Punto de entrada visual. Configura las barras del sistema, obtiene el ViewModel de su fábrica y muestra la interfaz. |
+| `PersonasApplication.kt` | Mantiene el contenedor de dependencias durante la vida del proceso. |
+| `di/AppContainer.kt` | Construye las implementaciones de repositorios y la fábrica del ViewModel. La fábrica recibe el `SavedStateHandle` del ciclo de vida. |
+| `domain/Persona.kt` | Modelo de la ficha de una persona. |
+| `domain/Profesion.kt` | Modelo del catálogo de profesiones. |
+| `domain/Borrador.kt` | Datos editables del formulario, fotografía pendiente e información de la ficha en vivo. |
+| `domain/CapturaFoto.kt` | Ruta del archivo temporal y URI que utiliza la cámara. |
+| `domain/Validacion.kt` | Reglas de DNI, celular, correo y formulario; correspondencia entre campos y pestañas. |
+| `domain/PersonasRepository.kt` | Contrato de búsqueda, alta, actualización, eliminación y catálogo. |
+| `domain/FotosRepository.kt` | Contrato de preparación de captura, importación y limpieza de archivos temporales. |
+| `domain/ServidorUrl.kt` | Política de validación del origen HTTP/HTTPS. |
+| `data/HttpPersonasRepository.kt` | Implementación HTTP del contrato de personas: JSON, multipart y traducción de errores de la API. |
+| `data/ApiException.kt` | Error de respuesta con código HTTP, mensaje y campos inválidos. |
+| `data/PersonaJson.kt` | Conversión JSON de personas y borradores, incluida la serialización del estado guardado. |
+| `data/ApiConfig.kt` | Resolución automática del origen de la API o lectura del origen definido al compilar. |
+| `data/ArchivoFotosRepository.kt` | Implementación del contrato de fotos. Encapsula `Context`, `FileProvider`, URI e importación fuera del hilo principal. |
+| `data/FotoImporter.kt` | Validación de tamaño, orientación EXIF, conversión JPEG y limpieza de borradores privados. |
+| `data/FotoLoader.kt` | Lectura de imágenes locales o remotas, reducción de resolución y caché de bitmaps. |
+| `viewmodel/PersonasViewModel.kt` | Coordinación del formulario y operaciones mediante repositorios inyectados. Expone `StateFlow` y conserva datos en `SavedStateHandle`; no recibe `Application` ni `Context`. |
+| `viewmodel/Pantalla.kt` | Estado de pantalla: ficha, borrador, pestaña, catálogo, errores, carga y confirmaciones. |
+| `viewmodel/Aviso.kt` | Título y mensaje de los avisos de validación. |
+| `ui/PersonasApp.kt` | Pantalla inicial, resultados, permiso de red y lanzadores de cámara y galería. |
+| `ui/FichaModal.kt` | Contenedor de consulta/edición, título, cierre, desplazamiento y acciones. |
+| `ui/EditorPersona.kt` | Campos, catálogo, pestañas y acciones de fotografía. |
+| `ui/FichaPersona.kt` | Resumen, ficha en vivo y detalle de consulta. |
+| `ui/FotoPersona.kt` | Representación de la fotografía, iniciales o marcador vacío. |
+| `ui/DialogosPersona.kt` | Confirmaciones, validaciones y registro de profesiones. |
+| `ui/Campos.kt`, `Botones.kt`, `AppIcon.kt` | Controles e iconos reutilizables con etiquetas accesibles. |
+| `ui/theme/Theme.kt`, `Type.kt` | Tema claro, color azul de acciones y tipografía. |
 
-Otros archivos de Android:
+El manifiesto principal declara la `Application`, actividad, permisos de red y `FileProvider`. El manifiesto de `debug` habilita HTTP para desarrollo. `res/xml/file_paths.xml` delimita el directorio de borradores que puede compartir la cámara; las demás carpetas de recursos contienen nombre, tema, iconos y reglas de respaldo.
 
-| Ubicación | Función |
+`app/src/test` contiene validaciones y pruebas aisladas del ViewModel con repositorios sustitutos. `app/src/androidTest` contiene pruebas de interacción, pestañas, teclado, fichas e iconos. `app/build.gradle.kts` define dependencias, SDK, variantes, origen compilado de la API y arranque de servicios.
+
+### API
+
+Las rutas Java siguientes son relativas a `backend/src/main/java/com/example/personas/`.
+
+| Archivo o carpeta | Responsabilidad |
 | --- | --- |
-| `app/src/main/AndroidManifest.xml` | Actividad de inicio, permisos de Internet/red local y `FileProvider`. |
-| `app/src/debug/AndroidManifest.xml` | Permite HTTP en desarrollo; el manifiesto principal mantiene HTTP bloqueado en release. |
-| `app/src/main/res/xml/file_paths.xml` | Directorio de borradores que se comparte temporalmente con la cámara mediante URI. |
-| `app/src/main/res/xml/*backup*`, `data_extraction_rules.xml` | Reglas de extracción y respaldo; la app desactiva el backup de sus datos. |
-| `app/src/main/res/values`, `drawable`, `mipmap*` | Nombre, tema base e iconos de Android. |
-| `app/src/test` | Pruebas JVM de DNI, celular, correo, formulario y configuración de URL. |
-| `app/src/androidTest` | Pruebas en Android: pestañas, formulario, teclado, ficha en vivo, acciones accesibles y texto ampliado. |
-| `app/build.gradle.kts` | SDK, dependencias, variantes, servidor compilado y dependencia del arranque automático. |
+| `App.java` | Arranque de Spring Boot y carga de `.env`, respetando variables de entorno existentes. |
+| `controller/PersonaController.java` | Recepción HTTP, validación de DTO, delegación al servicio y respuestas HTTP; incluye la comprobación de disponibilidad. |
+| `controller/ApiExceptionHandler.java` | Respuestas JSON consistentes para validación, duplicados, formato y tamaño de archivo. |
+| `dto/PersonaRequest.java`, `ProfesionRequest.java` | Contratos de entrada y validación del servidor. |
+| `dto/PersonaResponse.java`, `ProfesionResponse.java` | Contratos de salida con nombre de profesión y URL de fotografía. |
+| `service/PersonaService.java` | Reglas de negocio, transacciones, reserva del DNI, catálogo y acceso a personas activas. |
+| `service/FotoStorage.java` | Validación de imágenes, carpetas por DNI, nombres UUID y limpieza de archivos según el resultado de la transacción. |
+| `service/ApiError.java` | Error de negocio con código HTTP. |
+| `repository/PersonaRepository.java` | Consultas JPA, filtro por estado y bloqueo de filas durante modificaciones. |
+| `repository/ProfesionRepository.java` | Catálogo ordenado y búsqueda de nombres normalizados. |
+| `model/Persona.java`, `Profesion.java` | Entidades JPA y relación entre persona y profesión. |
+| `model/EstadoPersona.java` | Estados `ACTIVO` e `INACTIVO`. |
 
-### API: responsabilidad de cada carpeta y archivo
+En `backend/src/main/resources`, `application.properties` define conexión, puerto, inicialización SQL y límites multipart. La carpeta `db` contiene:
 
-Las rutas Java son relativas a `backend/src/main/java/com/example/personas/`.
-
-| Ubicación | Responsabilidad |
+| Archivo | Función |
 | --- | --- |
-| `App.java` | Inicia Spring Boot y carga `.env` si existe, respetando las variables ya definidas. |
-| `controller/PersonaController.java` | Recibe HTTP, valida los DTO y delega las operaciones al servicio; devuelve códigos y cuerpos HTTP. Incluye la comprobación de salud. |
-| `controller/ApiExceptionHandler.java` | Convierte errores de validación, duplicados, formato y tamaño de foto a respuestas JSON consistentes. |
-| `dto/PersonaRequest.java`, `ProfesionRequest.java` | Contratos de entrada y validaciones del servidor. |
-| `dto/PersonaResponse.java`, `ProfesionResponse.java` | Contratos de salida; exponen el nombre de profesión y la URL de foto que necesita Android. |
-| `service/PersonaService.java` | Reglas de negocio, reserva del DNI, profesión existente, normalización de profesiones y transacciones. Solo consulta, edita o elimina personas activas. |
-| `service/FotoStorage.java` | Valida la imagen real, guarda JPEG con nombre UUID, recupera archivos y limpia fotos según el resultado de la transacción. |
-| `service/ApiError.java` | Error de negocio con código HTTP para el manejador central. |
-| `repository/PersonaRepository.java` | Consultas JPA, filtro por estado y bloqueo de filas para modificar/eliminar sin carreras. |
-| `repository/ProfesionRepository.java` | Catálogo ordenado y comprobación de nombres normalizados. |
-| `model/Persona.java`, `Profesion.java` | Entidades JPA y relación entre tablas. La entidad Persona recibe valores de dominio; no depende de DTO HTTP. |
-| `model/EstadoPersona.java` | Valores permitidos del estado: `ACTIVO` e `INACTIVO`. |
-| `backend/src/main/resources/application.properties` | Puerto, conexión, inicialización SQL, validación del esquema, almacenamiento y límites multipart. |
-| `backend/src/main/resources/db/schema.sql` | Tablas, claves, relación, índice y restricciones SQL. |
-| `backend/src/main/resources/db/migrate-estado.sql` | Convierte el antiguo booleano `activo` al campo `estado`; conserva activos e inactivos y admite ejecuciones repetidas. |
-| `backend/src/main/resources/db/data.sql` | Catálogo inicial de profesiones, sin duplicarlo en cada arranque. |
-| `backend/src/test` | Pruebas de validación del servidor y almacenamiento/limpieza transaccional de fotos. |
-| `backend/pom.xml` | Java 25, Spring Boot 4.1.1, JPA, validación, PostgreSQL, dotenv y empaquetado del JAR. |
-| `backend/.env.example` | Ejemplo del formato de configuración sin una clave real. El uso habitual con Run genera `.env` automáticamente. |
+| `schema.sql` | Tablas, claves, índice y restricciones. |
+| `data.sql` | Catálogo inicial sin duplicación en arranques posteriores. |
+| `migrate-estado.sql` | Conversión del indicador antiguo al campo `estado`, conservando activos e inactivos. |
+| `migrate-foto-ruta.sql` | Restricción de rutas de fotografía y correspondencia entre carpeta y DNI. |
 
-### Configuración y herramientas del proyecto
+`backend/src/test` contiene validaciones y comprobaciones de almacenamiento transaccional. `pom.xml` define Java, Spring Boot, JPA, validación, PostgreSQL, dotenv y empaquetado. `.env.example` describe el formato de configuración; Run genera el `.env` local.
 
-| Archivo o carpeta | Qué hace |
+### Configuración y herramientas
+
+| Archivo o carpeta | Función |
 | --- | --- |
-| `settings.gradle.kts` | Declara el proyecto y sus módulos y repositorios de dependencias. |
-| `build.gradle.kts` | Plugins compartidos del proyecto Android. |
-| `gradle/libs.versions.toml` | Versiones y alias de las dependencias de Android. |
-| `gradle/wrapper`, `gradlew`, `gradlew.bat` | Gradle 9.6 del proyecto; evita depender de una instalación global de Gradle. |
-| `gradle/gradle-daemon-jvm.properties` | Requisito de Java 25 para el daemon de Gradle. |
-| `gradle.properties` | Memoria, codificación, caché y ajustes de la JVM. No contiene contraseñas. |
-| `.run/app.run.xml` | Configuración Run de Android Studio con el arranque de servicios como tarea previa. |
-| `scripts/start-local-services.ps1` | Inicializa/reutiliza PostgreSQL, prepara credenciales, compila/reinicia la API propia y configura ADB. Usa un mutex para coordinar arranques simultáneos. |
-| `scripts/maven.ps1` | Ejecuta Maven con el JDK configurado para la API. |
-| `scripts/test-api.py` | Pruebas HTTP y SQL con una base desechable: migración, concurrencia, relaciones, restricciones y fotografías. |
-| `scripts/emulator-services.py` | API y base temporales para pruebas desde el emulador; al detenerlas elimina esa base de verificación. |
-| `scripts/emulator-ui.py` | Ayudante ADB para capturas, lectura de accesibilidad y escritura de campos en el emulador de pruebas. |
-| `QA_EMULADOR.md`, `docs/capturas` | Resultado del recorrido real y capturas de evidencia con datos de prueba. |
-| `.gitignore` | Excluye credenciales, bases locales, fotos de usuarios, cachés, archivos del IDE y compilaciones. |
+| `settings.gradle.kts`, `build.gradle.kts` | Módulos, repositorios y plugins del proyecto Android. |
+| `gradle/libs.versions.toml` | Versiones y alias de dependencias Android. |
+| `gradle/wrapper`, `gradlew`, `gradlew.bat` | Distribución de Gradle del proyecto. |
+| `gradle/gradle-daemon-jvm.properties`, `gradle.properties` | JVM del daemon, memoria, codificación y caché. |
+| `.run/app.run.xml` | Configuración Run con preparación previa de servicios. |
+| `scripts/start-local-services.ps1` | Gestión del cluster privado, credenciales, compilación de API, comprobación de disponibilidad y túnel USB. |
+| `scripts/maven.ps1` | Ejecución de Maven con el JDK configurado. |
+| `scripts/test-api.py` | Comprobaciones HTTP/SQL sobre una base desechable. |
+| `scripts/emulator-services.py` | API y base temporales para interacción desde el emulador. |
+| `scripts/emulator-ui.py` | Accesibilidad, escritura y capturas mediante ADB; utiliza por defecto `C:\Android\Sdk` y `emulator-5556`. |
+| `docs/`, `QA_EMULADOR.md` | Documentación de verificación y capturas con datos sintéticos. |
+| `.gitignore`, `.gitattributes` | Exclusiones de archivos locales y normalización de formatos. |
 
-Las carpetas `.local`, `.gradle`, `.kotlin`, `build`, `app/build`, `backend/target` y `backend/storage` se generan localmente. No son código fuente ni se suben a GitHub. El documento y audio originales del docente tampoco forman parte del repositorio.
+`.local`, `.gradle`, `.kotlin`, `build`, `app/build`, `backend/target` y `backend/storage` son directorios generados. Las credenciales, bases locales, fotos de usuarios y configuración del IDE permanecen fuera del repositorio.
 
-## Cómo se comunican las partes
+## Comunicación entre componentes
 
 ```mermaid
 flowchart LR
-    UI[Compose: pantallas y campos] -->|Eventos| VM[ViewModel: estado y operaciones]
-    VM -->|Validación local| D[Domain]
-    VM --> R[Repository Android]
-    R -->|HTTP JSON o multipart| C[Controller API]
-    C --> S[Service: reglas y transacción]
+    A[Application] --> D[AppContainer]
+    D -->|Inyección por constructor| VM[ViewModel]
+    UI[Compose] -->|Acciones| VM
+    VM --> R[Contrato PersonasRepository]
+    R --> H[HttpPersonasRepository]
+    H -->|HTTP JSON o multipart| C[Controller]
+    C --> S[Service]
     S --> J[Repository JPA]
     J --> DB[(PostgreSQL)]
-    S --> F[FotoStorage: archivos JPEG]
+    S --> F[Archivos de fotos por DNI]
+    VM --> FR[Contrato FotosRepository]
+    FR --> AF[ArchivoFotosRepository]
     VM -->|StateFlow| UI
 ```
 
-Ejemplo al guardar: Compose actualiza el `Borrador`; el ViewModel valida, pide confirmación y llama al Repository. El Repository envía `datos` como JSON y `foto` como archivo multipart. El Controller valida otra vez y llama al Service. El Service comprueba el DNI y la profesión, guarda la foto y persiste la entidad dentro de una transacción. El DTO de respuesta vuelve a Android, el ViewModel actualiza su estado y Compose muestra la ficha guardada.
+`AppContainer` construye las implementaciones y las proporciona al ViewModel mediante una fábrica. El ViewModel utiliza los contratos de repositorio y administra el estado de pantalla. Las dependencias de Android necesarias para archivos y URI permanecen en la implementación de fotografías.
 
-Al reemplazar una fotografía, primero se guarda el nuevo archivo. Si la transacción confirma, se elimina el anterior; si falla, se elimina el nuevo. Así no se pierde la foto anterior por una actualización fallida. Las operaciones HTTP, lectura de imágenes e importación de fotos se ejecutan fuera del hilo principal de Android.
+Durante un alta, Compose actualiza el borrador; el ViewModel valida y solicita confirmación. El repositorio HTTP envía los datos JSON y la foto multipart. El Controller valida la entrada y delega al Service, que comprueba el DNI y la profesión y persiste la entidad dentro de una transacción. La respuesta actualiza el `StateFlow` y la ficha visible.
 
-## Modelo de datos y eliminación lógica
+## Modelo relacional y eliminación lógica
 
-El esquema es `personas`. Una profesión puede estar relacionada con muchas personas; cada persona debe tener exactamente una profesión existente.
+El esquema `personas` contiene las tablas `profesion` y `persona`. Una profesión puede pertenecer a varias personas; cada persona requiere una profesión existente.
 
-| Tabla / columna | Tipo y regla |
+| Tabla / columna | Tipo y restricción |
 | --- | --- |
 | `profesion.id` | `BIGINT`, identidad y clave primaria. |
 | `profesion.nombre` | `VARCHAR(80)`, obligatorio. |
-| `profesion.nombre_clave` | `VARCHAR(80) UNIQUE`, nombre normalizado sin diferencias de tildes, mayúsculas o espacios repetidos. |
-| `persona.dni` | `VARCHAR(8) PRIMARY KEY`, exactamente ocho dígitos. Conserva los ceros iniciales; no existe otro ID de persona. |
-| `persona.nombres`, `apellidos` | `VARCHAR(100)`, obligatorios. |
+| `profesion.nombre_clave` | `VARCHAR(80) UNIQUE`, normalizado sin diferencias de tildes, mayúsculas o espacios repetidos. |
+| `persona.dni` | `VARCHAR(8) PRIMARY KEY`, ocho dígitos con conservación de ceros iniciales. |
+| `persona.nombres`, `persona.apellidos` | `VARCHAR(100)`, obligatorios. |
 | `persona.direccion` | `VARCHAR(200)`, obligatoria. |
-| `persona.profesion_id` | `BIGINT NOT NULL`, clave foránea a `profesion.id`, con `ON DELETE RESTRICT`. Tiene índice. |
-| `persona.celular` | `VARCHAR(9)`, exactamente nueve dígitos y el primero es 9. |
-| `persona.correo` | `VARCHAR(180)`, obligatorio y con formato de correo validado. |
-| `persona.foto_ruta` | `VARCHAR(80)`, nombre UUID terminado en `.jpg`. El archivo está en el servidor; no se guarda como texto Base64 en la tabla. |
-| `persona.estado` | `VARCHAR(8) NOT NULL DEFAULT 'ACTIVO'`, restringido a `ACTIVO` o `INACTIVO`. |
+| `persona.profesion_id` | `BIGINT NOT NULL`, clave foránea a `profesion.id`, índice y `ON DELETE RESTRICT`. |
+| `persona.celular` | `VARCHAR(9)`, nueve dígitos con inicio en 9. |
+| `persona.correo` | `VARCHAR(180)`, obligatorio y con formato de correo. |
+| `persona.foto_ruta` | `VARCHAR(80)`, ruta relativa de la fotografía. La carpeta, cuando está presente, debe coincidir con el DNI. |
+| `persona.estado` | `VARCHAR(8) NOT NULL DEFAULT 'ACTIVO'`, limitado a `ACTIVO` o `INACTIVO`. |
 
-**Eliminar cambia `estado` a `INACTIVO`; no hace `DELETE` de la fila.** La búsqueda, edición y descarga de foto excluyen las filas inactivas. Los datos y su fotografía se conservan, y el DNI continúa reservado. Intentar registrar de nuevo el mismo DNI, incluso después de eliminarlo, devuelve conflicto. La clave primaria también protege frente a dos altas simultáneas.
+La eliminación cambia el estado a `INACTIVO` y conserva la fila y su fotografía. Las búsquedas, ediciones y descargas de foto excluyen los registros inactivos. El DNI permanece reservado; la clave primaria protege también frente a altas simultáneas.
 
-Las reglas se aplican en Android para avisar al usuario, en la API para validar cualquier cliente y en PostgreSQL para proteger la integridad. Hibernate usa `ddl-auto=validate`; la definición SQL controla el esquema.
+Las validaciones de Android proporcionan avisos inmediatos. La API valida cualquier solicitud y PostgreSQL aplica restricciones de integridad. Hibernate utiliza `ddl-auto=validate`; los archivos SQL controlan el esquema.
 
-La migración automática convierte los datos antiguos: `activo=true` pasa a `ACTIVO`, y `activo=false` a `INACTIVO`. Después retira el campo antiguo. Volver a ejecutar el arranque no reactiva personas.
+## Almacenamiento de fotografías
+
+Las fotografías se guardan por persona, dentro de una carpeta identificada por su DNI:
+
+```text
+backend/storage/fotos/
+└── 01234567/
+    └── <uuid>.jpg
+```
+
+La columna `foto_ruta` almacena la ruta relativa `01234567/<uuid>.jpg`. El directorio raíz procede de `PHOTO_DIRECTORY`; la URL pública de consulta se genera mediante `/api/personas/{dni}/foto`. PostgreSQL almacena la ubicación del archivo.
+
+Un reemplazo crea un archivo nuevo en la misma carpeta. El commit elimina la foto anterior; un rollback elimina la nueva y conserva la anterior. La eliminación lógica mantiene la carpeta y el archivo. Las rutas antiguas de un solo nombre UUID siguen siendo legibles; una sustitución utiliza el formato por DNI.
+
+La captura utiliza `ActivityResultContracts.TakePicture` con `FileProvider` y la cámara instalada en el dispositivo. `PickVisualMedia` abre el selector de Android. La aplicación delega la captura y no declara permiso `CAMERA` ni acceso general al almacenamiento. La importación limita el tamaño, corrige la orientación EXIF y convierte a JPEG antes del envío. La API valida el contenido real, con límite de 10 MB y 24 millones de píxeles.
 
 ## API HTTP
 
-| Método | Ruta | Resultado |
+| Método | Ruta | Operación |
 | --- | --- | --- |
-| GET | `/api/health` | Estado de API y PostgreSQL, instancia y versión. |
-| GET | `/api/profesiones` | Catálogo de profesiones. |
-| POST | `/api/profesiones` | Nueva profesión; JSON con `nombre`. |
-| POST | `/api/personas` | Alta; multipart con `datos` JSON y `foto`. |
-| GET | `/api/personas/{dni}` | Persona activa con su profesión y URL de fotografía. |
-| PUT | `/api/personas/{dni}` | Edición; multipart con `datos` y foto opcional. El DNI no cambia. |
-| DELETE | `/api/personas/{dni}` | Eliminación lógica; respuesta 204. |
-| GET | `/api/personas/{dni}/existe` | Indica si el DNI está reservado, incluyendo personas inactivas. |
-| GET | `/api/personas/{dni}/foto` | JPEG de una persona activa. |
+| GET | `/api/health` | Disponibilidad de API/PostgreSQL, instancia y versión. |
+| GET / POST | `/api/profesiones` | Catálogo o nueva profesión con JSON `nombre`. |
+| POST | `/api/personas` | Alta multipart con `datos` JSON y `foto`. |
+| GET | `/api/personas/{dni}` | Ficha de persona activa. |
+| PUT | `/api/personas/{dni}` | Actualización multipart; la foto es opcional y el DNI permanece fijo. |
+| DELETE | `/api/personas/{dni}` | Eliminación lógica con respuesta 204. |
+| GET | `/api/personas/{dni}/existe` | Reserva de DNI, incluidos registros inactivos. |
+| GET | `/api/personas/{dni}/foto` | JPEG de persona activa. |
 
-No se publica un listado general de personas. Los errores devuelven `mensaje` y, cuando corresponde, `campos`; se usan 400 para datos inválidos, 404 para registros no disponibles, 409 para duplicados y 413 para fotografías demasiado grandes.
+La consulta de personas se realiza por DNI. Los errores incluyen `mensaje` y, cuando corresponde, `campos`. Los códigos principales son 400 para datos inválidos, 404 para recursos no disponibles, 409 para duplicados y 413 para exceso de tamaño.
 
-## Cámara, galería y configuración de despliegue
+## Configuración de despliegue
 
-Se usa `ActivityResultContracts.TakePicture` con `FileProvider` para abrir la **aplicación de cámara del dispositivo**. No se integra una cámara propia ni se necesita CameraX para este flujo. `PickVisualMedia` abre el selector de fotos de Android. La app no necesita permiso general de almacenamiento ni declara `CAMERA`, porque delega la captura en la cámara instalada.
+El APK debug utiliza la conexión local automática. Una compilación release requiere una API desplegada con HTTPS y la propiedad Gradle `PERSONAS_API_URL` definida durante la compilación. El origen se configura en el proceso de construcción; la pantalla de la aplicación no solicita direcciones al usuario.
 
-Las imágenes se importan a archivos privados de Android, se corrige la orientación y se convierten a JPEG. La API valida su contenido real y tamaño, y almacena el archivo en `backend/storage/fotos`. Solo su ubicación queda en PostgreSQL.
-
-Para emulador y teléfono USB, Run resuelve la conexión de desarrollo. Un APK **release** necesita una API desplegada con HTTPS y `PERSONAS_API_URL` definido como propiedad de Gradle al compilar. El usuario final no configura direcciones en la pantalla. El arranque automático es una herramienta de desarrollo en el PC; una app instalada en un teléfono no inicia PostgreSQL dentro del dispositivo.
-
-## Pruebas
-
-El recorrido real está documentado en [QA_EMULADOR.md](QA_EMULADOR.md). Se verifican alta con foto, búsqueda, consulta, edición, reemplazo desde galería, duplicados activos e inactivos, celular inválido y eliminación lógica contrastada con SQL.
-
-Para desarrollo se pueden ejecutar estas comprobaciones; el uso habitual de la app solo requiere Run:
-
-```powershell
-.\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:connectedDebugAndroidTest
-.\scripts\maven.ps1 -MavenArguments @('test', 'package')
-python .\scripts\test-api.py
-```
-
-`test-api.py` requiere Python 3, PostgreSQL local activo y el JAR de la API compilado. Crea y elimina una base desechable; no modifica `personas_app`. No ejecutarlo mientras se está reconstruyendo ese JAR. Los ayudantes de emulador usan por defecto el SDK `C:\Android\Sdk` y el dispositivo `emulator-5556`; si se repiten en otro entorno, adaptar esas rutas y el identificador del dispositivo en los scripts.
-
-El informe de lint y los resultados de pruebas Android se generan dentro de `app/build/reports` y `app/build/test-results`.
+El arranque automático administra los servicios de desarrollo en el PC. Un teléfono ejecuta el cliente Android y se comunica con la API del entorno configurado.

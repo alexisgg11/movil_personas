@@ -1,45 +1,7 @@
 package com.example.personas.domain
 
-data class Profesion(val id: Long, val nombre: String)
 data class Persona(
     val dni: String, val nombres: String, val apellidos: String, val direccion: String,
     val profesionId: Long, val profesion: String, val celular: String, val correo: String,
     val fotoUrl: String
 )
-data class Borrador(
-    val dni: String = "", val nombres: String = "", val apellidos: String = "",
-    val direccion: String = "", val profesionId: Long = 0, val profesion: String = "",
-    val celular: String = "", val correo: String = "", val fotoLocal: String = "",
-    val fotoRemota: String = ""
-) {
-    val nombreCompleto get() = listOf(nombres.trim(), apellidos.trim()).filter { it.isNotBlank() }.joinToString(" ")
-    val tieneFoto get() = fotoLocal.isNotBlank() || fotoRemota.isNotBlank()
-    val iniciales get() = listOf(nombres, apellidos).mapNotNull { it.trim().firstOrNull()?.uppercaseChar() }.joinToString("")
-    companion object {
-        fun de(p: Persona) = Borrador(p.dni, p.nombres, p.apellidos, p.direccion,
-            p.profesionId, p.profesion, p.celular, p.correo, fotoRemota = p.fotoUrl)
-    }
-}
-object Validacion {
-    fun seccion(campo: String) = when (campo) {
-        "dni", "nombres", "apellidos", "profesionId" -> 0
-        "direccion", "celular", "correo" -> 1
-        else -> 2
-    }
-    fun paso(d: Borrador, indice: Int) = formulario(d).filterKeys { seccion(it) == indice }
-    fun dni(valor: String) = valor.matches(Regex("[0-9]{8}"))
-    fun celular(valor: String) = valor.matches(Regex("9[0-9]{8}"))
-    fun correo(valor: String) = valor.trim().let {
-        it.length <= 180 && it.matches(Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))
-    }
-    fun formulario(d: Borrador): Map<String, String> = buildMap {
-        if (!dni(d.dni)) put("dni", "Ingresa los 8 dígitos del DNI.")
-        if (d.nombres.isBlank() || d.nombres.trim().length > 100) put("nombres", "Ingresa los nombres (máximo 100 caracteres).")
-        if (d.apellidos.isBlank() || d.apellidos.trim().length > 100) put("apellidos", "Ingresa los apellidos (máximo 100 caracteres).")
-        if (d.direccion.isBlank() || d.direccion.trim().length > 200) put("direccion", "Ingresa la dirección (máximo 200 caracteres).")
-        if (d.profesionId <= 0) put("profesionId", "Selecciona una profesión.")
-        if (!celular(d.celular)) put("celular", "Ingresa 9 dígitos; el primero debe ser 9.")
-        if (!correo(d.correo)) put("correo", "Ingresa un correo válido.")
-        if (d.fotoLocal.isBlank() && d.fotoRemota.isBlank()) put("foto", "Toma o adjunta una fotografía.")
-    }
-}

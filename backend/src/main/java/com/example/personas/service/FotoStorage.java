@@ -17,10 +17,13 @@ public class FotoStorage {
     public FotoStorage(@Value("${app.photo-directory}") String directorio) throws IOException {
         raiz = Path.of(directorio).toAbsolutePath().normalize(); Files.createDirectories(raiz);
     }
-    public String guardar(MultipartFile foto, String anterior) {
+    public String guardar(String dni, MultipartFile foto, String anterior) {
+        if (dni == null || !dni.matches("[0-9]{8}")) throw new ApiError(400, "El DNI debe tener 8 dígitos.");
+        if (anterior != null && anterior.contains("/") && !anterior.startsWith(dni + "/"))
+            throw new ApiError(400, "La fotografía no pertenece al registro.");
         if (foto == null || foto.isEmpty()) throw new ApiError(400, "Añade una fotografía.");
         if (foto.getSize() > 10 * 1024 * 1024) throw new ApiError(400, "La foto supera los 10 MB.");
-        String nombre = UUID.randomUUID() + ".jpg";
+        String nombre = dni + "/" + UUID.randomUUID() + ".jpg";
         Path destino = raiz.resolve(nombre);
         try (ImageInputStream entrada = ImageIO.createImageInputStream(foto.getInputStream())) {
             var lectores = ImageIO.getImageReaders(entrada);
@@ -37,6 +40,7 @@ public class FotoStorage {
             var g = salida.createGraphics();
             try { g.setColor(java.awt.Color.WHITE); g.fillRect(0, 0, salida.getWidth(), salida.getHeight()); g.drawImage(original, 0, 0, null); }
             finally { g.dispose(); }
+            Files.createDirectories(destino.getParent());
             if (!ImageIO.write(salida, "jpg", destino.toFile())) throw new IOException("JPEG");
         } catch (IOException | IllegalArgumentException e) {
             borrar(nombre); throw new ApiError(400, "No se pudo leer la fotografía.");
@@ -54,10 +58,14 @@ public class FotoStorage {
         catch (IOException e) { throw new ApiError(404, "Fotografía no disponible."); }
     }
     private Path ruta(String nombre) {
-        if (nombre == null || !nombre.matches("[0-9a-f-]{36}\\.jpg")) throw new ApiError(404, "Fotografía no disponible.");
+        if (nombre == null || !nombre.matches("(?:[0-9]{8}/)?[0-9a-f-]{36}\\.jpg")) throw new ApiError(404, "Fotografía no disponible.");
         return raiz.resolve(nombre);
     }
     private void borrar(String nombre) {
-        try { Files.deleteIfExists(ruta(nombre)); } catch (IOException ignored) {}
+        try {
+            Path archivo = ruta(nombre);
+            Files.deleteIfExists(archivo);
+            if (!archivo.getParent().equals(raiz)) Files.deleteIfExists(archivo.getParent());
+        } catch (IOException ignored) {}
     }
 }

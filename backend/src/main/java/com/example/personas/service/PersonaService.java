@@ -37,7 +37,7 @@ public class PersonaService {
         if (personas.existsById(datos.dni())) throw new ApiError(409, "Este DNI ya está registrado, incluso si fue eliminado.");
         Profesion profesion = profesion(datos.profesionId());
         Persona persona = new Persona(datos.dni());
-        aplicarDatos(persona, datos, profesion, fotos.guardar(foto, null));
+        aplicarDatos(persona, datos, profesion, fotos.guardar(datos.dni(), foto, null));
         em.persist(persona); em.flush();
         return PersonaResponse.de(persona);
     }
@@ -46,7 +46,7 @@ public class PersonaService {
         if (!dni.equals(datos.dni())) throw new ApiError(400, "El DNI de un registro no se puede cambiar.");
         Persona persona = personas.bloquear(dni, EstadoPersona.ACTIVO).orElseThrow(() -> new ApiError(404, "Persona no encontrada."));
         Profesion profesion = profesion(datos.profesionId());
-        String ruta = foto == null || foto.isEmpty() ? persona.getFotoRuta() : fotos.guardar(foto, persona.getFotoRuta());
+        String ruta = foto == null || foto.isEmpty() ? persona.getFotoRuta() : fotos.guardar(dni, foto, persona.getFotoRuta());
         aplicarDatos(persona, datos, profesion, ruta); em.flush();
         return PersonaResponse.de(persona);
     }

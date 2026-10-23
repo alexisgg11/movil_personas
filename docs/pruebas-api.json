@@ -1,5 +1,5 @@
 {
-  "passed": 29,
+  "passed": 31,
   "checks": [
     "health backed by PostgreSQL",
     "legacy state migration preserves active and inactive records on repeated startup",
@@ -12,6 +12,7 @@
     "unknown profession",
     "invalid image",
     "create with leading zero and photo",
+    "photo stored in the DNI directory with relative path in PostgreSQL",
     "duplicate DNI",
     "search only by DNI",
     "download photo",
@@ -26,6 +27,7 @@
     "deleted photo hidden",
     "deleted DNI remains reserved",
     "deleted DNI cannot be reused",
+    "database rejects another persons photo directory",
     "database rejects invalid state",
     "database rejects cellphone not starting with 9",
     "database rejects unknown profession FK",

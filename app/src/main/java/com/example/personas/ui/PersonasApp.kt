@@ -25,11 +25,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.personas.viewmodel.PersonasViewModel
 
 @Composable
-fun PersonasApp(vm: PersonasViewModel = viewModel()) {
+fun PersonasApp(vm: PersonasViewModel) {
     val s by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val focus = LocalFocusManager.current
@@ -48,7 +47,7 @@ fun PersonasApp(vm: PersonasViewModel = viewModel()) {
     }
     LaunchedEffect(s.mensaje) { s.mensaje?.let { snack.showSnackbar(it); vm.mensajeLeido() } }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture(), vm::camaraTerminada)
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { vm.importarFoto(it) } }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { vm.importarFoto(it.toString()) } }
     val buscar = { focus.clearFocus(); vm.buscar() }
     Scaffold(snackbarHost = { SnackbarHost(snack) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
@@ -89,7 +88,7 @@ fun PersonasApp(vm: PersonasViewModel = viewModel()) {
     if (s.modo.isNotEmpty()) {
         FichaModal(s, vm, camera = {
             vm.prepararCamara()?.let { uri ->
-                try { camera.launch(uri) }
+                try { camera.launch(Uri.parse(uri)) }
                 catch (_: Exception) { vm.camaraTerminada(false); vm.informar("No se encontró una aplicación de cámara disponible.") }
             }
         }, picker = {

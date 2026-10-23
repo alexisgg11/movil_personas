@@ -5,7 +5,12 @@
   "estadoDespues": "INACTIVO",
   "filaConservada": true,
   "fotoSustituida": true,
+  "fotoRuta": "00601024/8f575d43-7e72-402a-8b84-b886cd2e14aa.jpg",
+  "carpetaPorDni": true,
+  "capturaRecuperadaTrasCerrarProceso": true,
   "checks": [
+    "Carpeta de fotografías por DNI y ruta relativa en PostgreSQL",
+    "Captura y borrador recuperados tras muerte del proceso",
     "Campos obligatorios",
     "Nuevo vacía el formulario",
     "Profesión nueva",

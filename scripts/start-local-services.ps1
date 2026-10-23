@@ -130,7 +130,10 @@ try {
             if ($adbServer.WaitForExit(15000)) {
                 $devices = & $adb 'devices'
                 foreach ($line in $devices) {
-                    if ($line -match '^(\S+)\s+device$') { & $adb '-s' $Matches[1] 'reverse' 'tcp:8081' 'tcp:8081' | Out-Null }
+                    if ($line -match '^(\S+)\s+device$') {
+                        $serial = $Matches[1]
+                        if ($serial -notlike 'emulator-*') { & $adb '-s' $serial 'reverse' 'tcp:8081' 'tcp:8081' | Out-Null }
+                    }
                 }
             }
         }

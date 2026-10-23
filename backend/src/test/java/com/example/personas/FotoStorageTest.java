@@ -19,9 +19,10 @@ class FotoStorageTest {
         var previous = directory.resolve("00000000-0000-0000-0000-000000000000.jpg");
         Files.write(previous, new byte[]{1});
         TransactionSynchronizationManager.initSynchronization();
-        var photo = storage.guardar(photo(), previous.getFileName().toString());
+        var photo = storage.guardar("01234567", photo(), previous.getFileName().toString());
         for (var sync : TransactionSynchronizationManager.getSynchronizations()) sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
         assertFalse(Files.exists(directory.resolve(photo)));
+        assertFalse(Files.exists(directory.resolve("01234567")));
         assertTrue(Files.exists(previous));
     }
     @Test void commitKeepsNewPhotoAndDeletesReplacedPhoto() throws Exception {
@@ -29,15 +30,32 @@ class FotoStorageTest {
         var previous = directory.resolve("00000000-0000-0000-0000-000000000000.jpg");
         Files.write(previous, new byte[]{1});
         TransactionSynchronizationManager.initSynchronization();
-        var photo = storage.guardar(photo(), previous.getFileName().toString());
+        var photo = storage.guardar("01234567", photo(), previous.getFileName().toString());
         for (var sync : TransactionSynchronizationManager.getSynchronizations()) sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
         assertTrue(Files.exists(directory.resolve(photo)));
+        assertTrue(photo.startsWith("01234567/"));
         assertFalse(Files.exists(previous));
     }
     @Test void invalidImageDoesNotLeaveFiles() throws Exception {
         var storage = new FotoStorage(directory.toString());
-        assertThrows(ApiError.class, () -> storage.guardar(new MockMultipartFile("foto", "foto.jpg", "image/jpeg", new byte[]{1,2,3}), null));
+        assertThrows(ApiError.class, () -> storage.guardar("01234567", new MockMultipartFile("foto", "foto.jpg", "image/jpeg", new byte[]{1,2,3}), null));
         try (var files = Files.list(directory)) { assertEquals(0, files.count()); }
+    }
+    @Test void legacyPhotoRemainsReadable() throws Exception {
+        var storage = new FotoStorage(directory.toString());
+        var name = "00000000-0000-0000-0000-000000000000.jpg";
+        Files.write(directory.resolve(name), new byte[]{1,2,3});
+        assertArrayEquals(new byte[]{1,2,3}, storage.leer(name));
+    }
+    @Test void traversalCannotReadFilesOutsideThePhotoDirectory() throws Exception {
+        var storage = new FotoStorage(directory.toString());
+        assertThrows(ApiError.class, () -> storage.leer("../secret.jpg"));
+        assertThrows(ApiError.class, () -> storage.leer("01234567/../../secret.jpg"));
+    }
+    @Test void aPhotoFromAnotherPersonCannotBeReplaced() throws Exception {
+        var storage = new FotoStorage(directory.toString());
+        assertThrows(ApiError.class, () -> storage.guardar("01234567", photo(),
+            "02345678/00000000-0000-0000-0000-000000000000.jpg"));
     }
     private MockMultipartFile photo() throws Exception {
         var output = new ByteArrayOutputStream();

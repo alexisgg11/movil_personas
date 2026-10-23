@@ -77,12 +77,19 @@ def fill(selector, value):
         adb('shell', 'input', 'swipe', str((x1+x2)//2), str(y2-30), str((x1+x2)//2), str(y1+30), '350')
     else: raise RuntimeError('Editable field not visible: ' + selector)
     time.sleep(.4)
-    adb('shell', 'input', 'keycombination', '113', '29')
+    focused = matched(tree())
+    if not focused or focused[-1].get('focused') != 'true':
+        raise AssertionError('Field did not receive focus: ' + selector)
+    previous = focused[-1].get('text', '')
+    if previous:
+        adb('shell', 'input', 'keyevent', '123')
+        adb('shell', 'input', 'keyevent', *(['67'] * len(previous)))
+        cleared = matched(tree())
+        if not cleared or cleared[-1].get('text', ''):
+            raise AssertionError('Field was not cleared before typing: ' + selector)
     if value:
         encoded = value.replace(' ', '%s').replace("'", '')
         adb('shell', 'input', 'text', "'" + encoded + "'")
-    else:
-        adb('shell', 'input', 'keyevent', '67')
     time.sleep(.2)
     edited = matched(tree())
     if not edited or edited[-1].get('text', '') != value:
