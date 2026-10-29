@@ -32,7 +32,7 @@ internal fun EditorPersona(s: Pantalla, vm: PersonasViewModel, compacto: Boolean
     val d = s.borrador
     val foto = d.fotoLocal.ifBlank { vm.fotoUrl(d.fotoRemota) }
     Column(verticalArrangement = Arrangement.spacedBy(if (compacto) 12.dp else 16.dp)) {
-        FichaEnVivo(d, foto, s.tab == 1, compacto)
+        FichaEnVivo(d, foto, compacto)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         PestanasFormulario(s.tab, !s.ocupado, vm::tab)
         when (s.tab) {

@@ -53,20 +53,14 @@ private fun AccionFicha(simbolo: Symbol, descripcion: String, habilitado: Boolea
 }
 
 @Composable
-internal fun FichaEnVivo(d: Borrador, foto: String, contacto: Boolean, compacto: Boolean) {
-    Column(Modifier.fillMaxWidth().testTag("ficha-en-vivo"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            FotoPersona(foto, d.iniciales, Modifier.size(if (compacto) 64.dp else 72.dp, if (compacto) 72.dp else 80.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(d.nombreCompleto.ifBlank { "Nombre y apellidos" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                FilaResumen(Symbol.Briefcase, d.profesion.ifBlank { "Profesión" })
-                FilaResumen(Symbol.IdCard, "DNI ${d.dni.ifBlank { "--------" }}")
-            }
-        }
-        if (contacto) Column(Modifier.testTag("resumen-contacto"), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            if (d.celular.isNotBlank()) FilaResumen(Symbol.Phone, d.celular)
-            if (d.correo.isNotBlank()) FilaResumen(Symbol.Mail, d.correo)
-            if (d.direccion.texto.isNotBlank()) FilaResumen(Symbol.Home, d.direccion.texto)
+internal fun FichaEnVivo(d: Borrador, foto: String, compacto: Boolean) {
+    Row(Modifier.fillMaxWidth().testTag("ficha-en-vivo"),
+        horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        FotoPersona(foto, d.iniciales, Modifier.size(if (compacto) 64.dp else 72.dp, if (compacto) 72.dp else 80.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(d.nombreCompleto.ifBlank { "Nombre y apellidos" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            FilaResumen(Symbol.Briefcase, d.profesion.ifBlank { "Profesión" })
+            FilaResumen(Symbol.IdCard, "DNI ${d.dni.ifBlank { "--------" }}")
         }
     }
 }
